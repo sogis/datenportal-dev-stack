@@ -1,0 +1,116 @@
+name: datenportal-dev-stack
+
+services:
+  garage:
+    image: dxflrs/garage:v2.3.0
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    restart: unless-stopped
+    environment:
+      GARAGE_DEFAULT_ACCESS_KEY: ${GARAGE_DEFAULT_ACCESS_KEY:?Run ./scripts/init.sh first}
+      GARAGE_DEFAULT_SECRET_KEY: ${GARAGE_DEFAULT_SECRET_KEY:?Run ./scripts/init.sh first}
+      GARAGE_DEFAULT_BUCKET: ch.so.daten
+      RUST_LOG: garage=info
+    ports:
+      - "${GARAGE_S3_PORT:-3900}:3900"
+    expose:
+      - "3901"
+      - "3902"
+      - "3903"
+    volumes:
+      - ./services/garage/garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  datenblatt-editor:
+    image: sogis/datenportal-datenblatt-editor:0.1.4
+    restart: unless-stopped
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  jenkins:
+    image: ${DATENPORTAL_JENKINS_IMAGE:-sogis/datenportal-jenkins:0.1.0}
+    restart: unless-stopped
+    depends_on:
+      garage:
+        condition: service_healthy
+    ports:
+      - "${JENKINS_PORT:-8080}:8080"
+    environment:
+      JENKINS_RUNTIME_MODE: dev
+      CASC_JENKINS_CONFIG: /opt/datenportal/casc/jenkins-local.yaml
+      JENKINS_URL: http://localhost:${JENKINS_PORT:-8080}/
+      THEMEN_REPO_MODE: working-tree
+      THEMEN_REPO_URL: ""
+      THEMEN_REPO_PATH: /workspace/themenrepo
+      THEMEN_REPO_BRANCH: ${THEMEN_REPO_BRANCH:-main}
+    volumes:
+      - jenkins-home:/var/jenkins_home
+      - ../datenportal-jenkins-dev/casc/jenkins.yaml:/opt/datenportal/casc/jenkins-local.yaml:ro
+      - ../datenportal-themenrepo:/workspace/themenrepo:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/login >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  downloads:
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    depends_on:
+      garage:
+        condition: service_healthy
+      datenblatt-editor:
+        condition: service_healthy
+    ports:
+      - "${GARAGE_PUBLIC_PORT:-8081}:8081"
+    volumes:
+      - ./services/caddy:/etc/caddy:ro
+
+  garage-init:
+    image: amazon/aws-cli:2.36.35
+    restart: "no"
+    depends_on:
+      garage:
+        condition: service_healthy
+    environment:
+      AWS_ENDPOINT_URL: http://garage:3900
+      AWS_DEFAULT_REGION: garage
+      AWS_ACCESS_KEY_ID: ${GARAGE_DEFAULT_ACCESS_KEY:?Run ./scripts/init.sh first}
+      AWS_SECRET_ACCESS_KEY: ${GARAGE_DEFAULT_SECRET_KEY:?Run ./scripts/init.sh first}
+      AWS_EC2_METADATA_DISABLED: "true"
+      GARAGE_BUCKET: ch.so.daten
+      GARAGE_PUBLIC_PORT: ${GARAGE_PUBLIC_PORT:-8081}
+    volumes:
+      - ./services/garage/init:/init:ro
+    entrypoint: ["/bin/sh", "/init/initialize.sh"]
+
+  aws:
+    image: amazon/aws-cli:2.36.35
+    profiles: ["tools"]
+    depends_on:
+      garage:
+        condition: service_healthy
+    environment:
+      AWS_ENDPOINT_URL: http://garage:3900
+      AWS_DEFAULT_REGION: garage
+      AWS_ACCESS_KEY_ID: ${GARAGE_DEFAULT_ACCESS_KEY:?Run ./scripts/init.sh first}
+      AWS_SECRET_ACCESS_KEY: ${GARAGE_DEFAULT_SECRET_KEY:?Run ./scripts/init.sh first}
+      AWS_EC2_METADATA_DISABLED: "true"
+    entrypoint: ["aws", "--endpoint-url", "http://garage:3900", "--region", "garage"]
+
+volumes:
+  garage-meta:
+  garage-data:
+  jenkins-home:

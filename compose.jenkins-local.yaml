@@ -1,0 +1,3 @@
+services:
+  jenkins:
+    image: datenportal-jenkins:local

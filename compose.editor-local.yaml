@@ -1,0 +1,8 @@
+services:
+  datenblatt-editor:
+    image: datenblatt-editor:local
+    build:
+      context: ../datenportal-datenblatt-editor
+      dockerfile: Dockerfile
+      args:
+        VITE_BASE_PATH: ./

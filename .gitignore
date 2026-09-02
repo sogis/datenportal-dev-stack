@@ -118,3 +118,6 @@ gradle-app.setting
 hs_err_pid*
 replay_pid*
 
+# Lokale Zugangsdaten und generierte Konfiguration des Dev-Stacks
+/.env
+/services/garage/garage.toml

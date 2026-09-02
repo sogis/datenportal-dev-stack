@@ -1,0 +1,43 @@
+:8081 {
+	route {
+		header {
+			Access-Control-Allow-Origin "*"
+			Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
+			Access-Control-Allow-Headers "*"
+			Access-Control-Expose-Headers "ETag, Content-Length, Content-Type"
+		}
+
+		@options method OPTIONS
+		respond @options 204
+
+		@editorRoot path /metadaten-editor
+		redir @editorRoot /metadaten-editor/ 308
+
+		@editor path /metadaten-editor /metadaten-editor/*
+		handle @editor {
+			uri strip_prefix /metadaten-editor
+			reverse_proxy datenblatt-editor:8080 {
+				# The editor receives root paths and reconstructs its public base
+				# path from this trusted gateway header.
+				header_up X-Forwarded-Prefix /metadaten-editor
+			}
+		}
+
+		@bucketRoot path /ch.so.daten
+		redir @bucketRoot /ch.so.daten/ 308
+
+		handle_path /ch.so.daten/* {
+			reverse_proxy garage:3902 {
+				# Garage resolves the website bucket from this Host header.
+				header_up Host ch.so.daten.web.garage.localhost
+				header_down -Access-Control-Allow-Headers
+				header_down -Access-Control-Allow-Methods
+				header_down -Access-Control-Allow-Origin
+				header_down -Access-Control-Allow-Credentials
+				header_down -Access-Control-Expose-Headers
+			}
+		}
+
+		respond 404
+	}
+}

@@ -54,6 +54,12 @@ services:
       THEMEN_REPO_URL: ""
       THEMEN_REPO_PATH: /workspace/themenrepo
       THEMEN_REPO_BRANCH: ${THEMEN_REPO_BRANCH:-main}
+      ORG_GRADLE_PROJECT_s3Endpoint: ${DATENPORTAL_S3_ENDPOINT:-http://garage:3900}
+      ORG_GRADLE_PROJECT_s3Region: ${DATENPORTAL_S3_REGION:-garage}
+      ORG_GRADLE_PROJECT_s3BucketName: ${DATENPORTAL_S3_BUCKET:-ch.so.daten}
+      ORG_GRADLE_PROJECT_s3AccessKey: ${GARAGE_DEFAULT_ACCESS_KEY:?Run ./scripts/init.sh first}
+      ORG_GRADLE_PROJECT_s3SecretKey: ${GARAGE_DEFAULT_SECRET_KEY:?Run ./scripts/init.sh first}
+      ORG_GRADLE_PROJECT_s3Acl: ${DATENPORTAL_S3_ACL:-private}
     volumes:
       - jenkins-home:/var/jenkins_home
       - ../datenportal-jenkins-dev/casc/jenkins.yaml:/opt/datenportal/casc/jenkins-local.yaml:ro

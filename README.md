@@ -227,10 +227,18 @@ beim Containerstart.
 
 Die produktive Betriebsart ist für eine spätere Deployment-Konfiguration mit
 AD, externen Secrets und `managed-git` vorbereitet. Der lokale Stack enthält
-bewusst keine produktiven AD-Werte und konfiguriert noch keine Jenkins-
-S3-Credentials oder serverseitige Editor-Speicherung. Garage ist im Compose-
+bewusst keine produktiven AD-Werte und keine produktiven Jenkins-S3-Credentials
+oder serverseitige Editor-Speicherung. Für GRETL werden die
+S3-Properties im Jenkins-Container zentral als `ORG_GRADLE_PROJECT_*`
+Umgebungsvariablen gesetzt. Dadurch sind sie in jedem Gradle-Build als normale
+Properties wie `findProperty('s3Endpoint')` verfügbar. Garage ist im Compose-
 Netzwerk unter `http://garage:3900` erreichbar und kann später in einer
-Deployment-Konfiguration als S3-Endpunkt verwendet werden.
+Deployment-Konfiguration durch einen produktiven S3-Endpunkt ersetzt werden.
+
+Die Werte `DATENPORTAL_S3_ENDPOINT`, `DATENPORTAL_S3_REGION`,
+`DATENPORTAL_S3_BUCKET` und `DATENPORTAL_S3_ACL` können lokal über `.env`
+überschrieben werden. Access Key und Secret Key werden aus den lokal erzeugten
+Garage-Credentials übernommen und nicht versioniert.
 
 Jenkins-Healthcheck und Stack-Status:
 

@@ -38,6 +38,41 @@ services:
       retries: 30
       start_period: 5s
 
+  s3-browser:
+    image: rclone/rclone:1.75.1
+    restart: unless-stopped
+    depends_on:
+      garage:
+        condition: service_healthy
+    environment:
+      RCLONE_CONFIG_GARAGE_TYPE: s3
+      RCLONE_CONFIG_GARAGE_PROVIDER: Other
+      RCLONE_CONFIG_GARAGE_ENV_AUTH: "false"
+      RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID: ${GARAGE_BROWSER_ACCESS_KEY:?Run ./scripts/init.sh first}
+      RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY: ${GARAGE_BROWSER_SECRET_KEY:?Run ./scripts/init.sh first}
+      RCLONE_CONFIG_GARAGE_REGION: garage
+      RCLONE_CONFIG_GARAGE_ENDPOINT: http://garage:3900
+      RCLONE_CONFIG_GARAGE_FORCE_PATH_STYLE: "true"
+    command:
+      - serve
+      - http
+      - garage:ch.so.daten
+      - --addr
+      - :8080
+      - --baseurl
+      - /ch.so.daten
+      - --read-only
+      - --dir-cache-time
+      - 5s
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "rclone", "lsd", "garage:ch.so.daten"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
   jenkins:
     image: ${DATENPORTAL_JENKINS_IMAGE:-sogis/datenportal-jenkins:0.1.0}
     restart: unless-stopped
@@ -78,6 +113,8 @@ services:
       garage:
         condition: service_healthy
       datenblatt-editor:
+        condition: service_healthy
+      s3-browser:
         condition: service_healthy
     ports:
       - "${GARAGE_PUBLIC_PORT:-8081}:8081"

@@ -131,12 +131,82 @@ if [[ "$jenkins_local" == true ]]; then
   compose_files+=(-f compose.jenkins-local.yaml)
 fi
 
-docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 garage datenblatt-editor jenkins downloads
+sync_local_jenkins_plugin() {
+  echo "Synchronisiere lokales GRETL-Datenportal-Plugin ins Jenkins-Volume ..."
+  docker compose "${compose_files[@]}" run \
+    --rm \
+    --no-deps \
+    --no-TTY \
+    --user root \
+    --entrypoint /bin/sh \
+    jenkins \
+    -c '
+      set -eu
+      plugin_dir=/var/jenkins_home/plugins
+      image_plugin=/usr/share/jenkins/ref/plugins/jenkins-gretl-datenportal-plugin.jpi
+      installed_plugin="$plugin_dir/jenkins-gretl-datenportal-plugin.jpi"
+
+      if [ ! -f "$image_plugin" ]; then
+        echo "Plugin aus dem Jenkins-Image nicht gefunden: $image_plugin" >&2
+        exit 1
+      fi
+
+      mkdir -p "$plugin_dir"
+      cp "$image_plugin" "$installed_plugin"
+      chown jenkins:jenkins "$installed_plugin"
+      rm -f "$plugin_dir/jenkins-gretl-datenportal-plugin.hpi"
+      rm -rf "$plugin_dir/jenkins-gretl-datenportal-plugin"
+    '
+}
+
+ensure_public_browser_key() {
+  local key_id="${GARAGE_BROWSER_ACCESS_KEY}"
+
+  echo "Konfiguriere dedizierten Read-only-Schlüssel für den öffentlichen S3-Browser ..."
+  if ! docker compose "${compose_files[@]}" exec -T garage \
+    /garage key info "${key_id}" >/dev/null 2>&1; then
+    docker compose "${compose_files[@]}" exec -T garage \
+      /garage key import \
+      "${key_id}" \
+      "${GARAGE_BROWSER_SECRET_KEY}" \
+      -n "datenportal public browser" \
+      --yes >/dev/null
+  fi
+
+  docker compose "${compose_files[@]}" exec -T garage \
+    /garage key deny "${key_id}" --create-bucket >/dev/null
+  docker compose "${compose_files[@]}" exec -T garage \
+    /garage bucket deny --write --owner ch.so.daten --key "${key_id}" >/dev/null
+  docker compose "${compose_files[@]}" exec -T garage \
+    /garage bucket allow --read ch.so.daten --key "${key_id}" >/dev/null
+
+  if ! docker compose "${compose_files[@]}" --profile tools run \
+    --rm \
+    --no-deps \
+    -e AWS_ACCESS_KEY_ID="${GARAGE_BROWSER_ACCESS_KEY}" \
+    -e AWS_SECRET_ACCESS_KEY="${GARAGE_BROWSER_SECRET_KEY}" \
+    aws s3api head-bucket --bucket ch.so.daten >/dev/null; then
+    echo "Der konfigurierte Browser-Schlüssel kann ch.so.daten nicht lesen." >&2
+    echo "Prüfe die GARAGE_BROWSER_*-Werte in .env oder erzeuge die lokale Testinstanz neu." >&2
+    exit 1
+  fi
+}
+
+docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 garage
 docker compose "${compose_files[@]}" run --rm garage-init
+ensure_public_browser_key
+
+if [[ "$jenkins_local" == true ]]; then
+  docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 datenblatt-editor s3-browser downloads
+  sync_local_jenkins_plugin
+  docker compose "${compose_files[@]}" up -d --force-recreate --wait --wait-timeout 120 jenkins
+else
+  docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 datenblatt-editor s3-browser jenkins downloads
+fi
 
 echo
 echo "Garage-S3 is ready."
 echo "S3 API:           http://localhost:${GARAGE_S3_PORT:-3900}"
-echo "Public downloads: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten/"
+echo "Public S3 browser: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten/"
 echo "Datenblatt-Editor: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/metadaten-editor/"
-echo "Jenkins:          http://localhost:${JENKINS_PORT:-8080}/"
+echo "Jenkins:          http://localhost:${JENKINS_PORT:-8080}/gretl-datenportal/"

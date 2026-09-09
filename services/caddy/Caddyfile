@@ -26,16 +26,13 @@
 		@bucketRoot path /ch.so.daten
 		redir @bucketRoot /ch.so.daten/ 308
 
-		handle_path /ch.so.daten/* {
-			reverse_proxy garage:3902 {
-				# Garage resolves the website bucket from this Host header.
-				header_up Host ch.so.daten.web.garage.localhost
-				header_down -Access-Control-Allow-Headers
-				header_down -Access-Control-Allow-Methods
-				header_down -Access-Control-Allow-Origin
-				header_down -Access-Control-Allow-Credentials
-				header_down -Access-Control-Expose-Headers
+		handle /ch.so.daten/* {
+			# Garage's check endpoint only approves buckets with website access.
+			forward_auth garage:3903 {
+				uri /check?domain=ch.so.daten
 			}
+
+			reverse_proxy s3-browser:8080
 		}
 
 		respond 404

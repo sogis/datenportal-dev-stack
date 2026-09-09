@@ -3,11 +3,12 @@
 Lokaler Docker-Compose-Stack für Entwicklung, Integrationstests und Demos des
 Datenportals.
 
-Der Stack integriert Garage als lokalen S3-kompatiblen Object Storage, den
-Datenblatt-Editor als statische Webapp und Jenkins als Datenportal-/GRETL-
-Integrationsumgebung. Die Images und Buildlogik der Komponenten werden in
-ihren jeweiligen Projekten gepflegt; in diesem Repository liegen nur die
-Orchestrierung und die dafür nötigen Integrationsdateien.
+Der Stack integriert Garage als lokalen S3-kompatiblen Object Storage, einen
+anonymen Read-only-Browser für den öffentlichen Bucket, den Datenblatt-Editor
+als statische Webapp und Jenkins als Datenportal-/GRETL-Integrationsumgebung.
+Die Images und Buildlogik der Komponenten werden in ihren jeweiligen Projekten
+gepflegt; in diesem Repository liegen nur die Orchestrierung und die dafür
+nötigen Integrationsdateien.
 
 ## Garage-S3
 
@@ -18,19 +19,25 @@ Der Stack startet eine persistente Single-Node-Garage-Instanz mit dem Bucket
 |---|---|
 | S3 API vom Host aus | `http://localhost:3900` |
 | S3 API aus einem Compose-Service | `http://garage:3900` |
+| Öffentlicher Bucket-Browser | `http://localhost:8081/ch.so.daten/` |
 | Öffentliche Objekt-Links | `http://localhost:8081/ch.so.daten/<objekt-key>` |
 | Datenblatt-Editor | `http://localhost:8081/metadaten-editor/` |
 | Jenkins | `http://localhost:8080/` |
 | S3-Region | `garage` |
 
 Die S3-API ist für GRETL, Gradle und lokale Werkzeuge mit den generierten
-Dev-Zugangsdaten authentifiziert. Öffentliche Lesezugriffe erfolgen nur über
-den HTTP-Downloadpfad. Es gibt keine anonymen Schreibzugriffe und keine
-öffentliche S3-Bucket-Auflistung.
+Dev-Zugangsdaten authentifiziert. Öffentliche Lesezugriffe und die navigierbare
+Verzeichnisansicht erfolgen nur über den HTTP-Pfad für den explizit als Website
+freigegebenen Bucket. Es gibt keine anonymen Schreibzugriffe und keine
+Auflistung privater Buckets.
 
-Der Caddy-Service vor Garage ist für den stabilen pfadbasierten HTTP-Endpunkt,
-die Weiterleitung des Bucket-Hosts und CORS für Browser-Anfragen zuständig.
-Garage selbst liefert die statischen Objekte über seinen Website-Endpunkt.
+Der Caddy-Service stellt den stabilen pfadbasierten HTTP-Endpunkt und CORS für
+Browser-Anfragen bereit. Vor jedem Bucket-Zugriff prüft er über Garages
+`/check`-Endpunkt, ob der Website-Zugriff weiterhin aktiviert ist. Der
+`s3-browser`-Service verwendet `rclone serve http`, ist auf `ch.so.daten`
+begrenzt und arbeitet mit einem eigenen Garage-Schlüssel, der nur Leserechte
+besitzt. Weder rclone noch die Garage-Admin-API werden direkt auf einem
+Host-Port veröffentlicht.
 
 ## Voraussetzungen
 
@@ -45,9 +52,9 @@ docker compose version
 
 ## Starten
 
-Die Initialisierung erzeugt einmalig lokale Zugangsdaten und Garage-Secrets
-unter `.env` beziehungsweise `services/garage/garage.toml`. Beide Dateien
-werden nicht versioniert.
+Die Initialisierung erzeugt einmalig lokale Schreib- und Browser-Zugangsdaten
+sowie Garage-Secrets unter `.env` beziehungsweise
+`services/garage/garage.toml`. Beide Dateien werden nicht versioniert.
 
 ```bash
 ./scripts/init.sh
@@ -96,6 +103,12 @@ standardmässig `https://jars.interlis.guru/snapshots`. Mit
 ./scripts/up.sh --local-editor --local-jenkins
 ```
 
+Bei `--local-jenkins` wird die Plugin-HPI nach dem Image-Build zusätzlich in
+das persistente Compose-Volume `jenkins-home` synchronisiert. Anschliessend
+wird nur der Jenkins-Service neu erzeugt, damit auch bereits geladene Jelly-
+Views aktualisiert werden. Jobs und Build-Historien im Volume bleiben dabei
+erhalten; ein `docker compose down -v` ist für diesen Update-Loop nicht nötig.
+
 `docker compose build` baut weiterhin keine Komponente in der Standardvariante,
 weil Registry-Images verwendet werden. Der Jenkins-Local-Build wird bewusst
 über das Buildscript des Jenkins-Dev-Repositories ausgeführt und nicht über ein
@@ -105,6 +118,10 @@ zweites Dockerfile in diesem Stack.
 mit `index.html` und `404.html` und setzt die CORS-Konfiguration. Der Dienst
 ist absichtlich ein einmaliger Initialisierungscontainer und darf danach mit
 Status `Exited (0)` erscheinen.
+
+`up.sh` importiert zusätzlich den lokal erzeugten Browser-Schlüssel
+idempotent in Garage. Es entzieht ihm Create-, Write- und Owner-Rechte und
+gewährt ausschliesslich Read auf `ch.so.daten`.
 
 Ein erneuter Initialisierungslauf ist sicher und idempotent:
 
@@ -116,6 +133,7 @@ Logs:
 
 ```bash
 docker compose logs -f garage
+docker compose logs -f s3-browser
 docker compose logs -f downloads
 docker compose logs -f datenblatt-editor
 docker compose logs -f jenkins
@@ -155,7 +173,14 @@ docker compose --profile tools run --rm \
   aws s3 cp /tmp/demo.csv s3://ch.so.daten/downloads/demo.csv
 ```
 
-## Öffentliche HTTP-Links
+## Öffentlicher Bucket-Browser und HTTP-Links
+
+Der Bucket-Root zeigt ohne Anmeldung eine Verzeichnisliste mit Ordnernavigation
+und Downloadlinks:
+
+```text
+http://localhost:8081/ch.so.daten/
+```
 
 Nach einem Upload ist das Objekt ohne Zugangsdaten abrufbar:
 
@@ -165,10 +190,20 @@ curl -fS \
   -o /tmp/demo-download.csv
 ```
 
-Diesen URL-Aufbau kann die Webapp als normalen Link verwenden. Der Website-
-Endpunkt unterstützt Lesen per GET und HEAD; Verzeichnisauflistungen sind nicht
-vorgesehen. Der Bucket-Root funktioniert nur dann als Website, wenn ein
-`index.html`-Objekt hochgeladen wurde.
+Diesen URL-Aufbau kann die Webapp weiterhin als normalen Link verwenden. Der
+Browser unterstützt ausschliesslich Lesen per GET und HEAD. Änderungen aus
+Jenkins, GRETL oder dem AWS-CLI erscheinen spätestens nach dem kurzen
+Verzeichniscache von fünf Sekunden.
+
+Garage aktiviert den öffentlichen Zugriff weiterhin auf Bucket-Ebene. Wird
+der Website-Zugriff für `ch.so.daten` deaktiviert, blockiert Caddy sowohl die
+Verzeichnisansicht als auch direkte Objekt-Links. Der Bucket-Root liefert nun
+immer die Verzeichnisansicht; ein vorhandenes `index.html` wird als normale
+Datei angezeigt und nicht automatisch als Startseite ausgeliefert.
+
+Ein administratives Dashboard wie `garage-ui` wird bewusst nicht öffentlich
+eingebunden: Es benötigt den Garage-Admin-Token und besitzt damit deutlich
+weitergehende Rechte als die anonyme Verzeichnisansicht.
 
 ## Datenblatt-Editor
 
@@ -199,10 +234,12 @@ Der vollständige HTTP-Test ist im gemeinsamen Smoke-Test enthalten:
 
 ## Smoke-Test
 
-Der Smoke-Test erzeugt ein temporäres Objekt, prüft authentifiziertes Schreiben
-über die S3-API, anonymes Lesen über Caddy, HEAD und CORS und entfernt das
-Testobjekt anschliessend wieder. Zusätzlich prüft er die Editor-Startseite und
-die authentifizierte Jenkins-API:
+Der Smoke-Test erzeugt ein temporäres Objekt und prüft authentifiziertes
+Schreiben, die Read-only-Rechte des Browser-Schlüssels, die anonyme
+Verzeichnisansicht und direkte Downloads sowie HEAD und CORS. Er deaktiviert
+den Website-Zugriff kurzzeitig, prüft die Caddy-Sperre und stellt die Freigabe
+auch bei einem Fehler über den Cleanup wieder her. Zusätzlich prüft er die
+Editor-Startseite und die authentifizierte Jenkins-API:
 
 ```bash
 ./scripts/smoke-test.sh

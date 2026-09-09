@@ -19,6 +19,8 @@ if [[ ! -f "${ENV_FILE}" ]]; then
     printf '\n# Generated locally by scripts/init.sh. Do not commit this file.\n'
     printf 'GARAGE_DEFAULT_ACCESS_KEY=GK%s\n' "$(openssl rand -hex 16)"
     printf 'GARAGE_DEFAULT_SECRET_KEY=%s\n' "$(openssl rand -hex 32)"
+    printf 'GARAGE_BROWSER_ACCESS_KEY=GK%s\n' "$(openssl rand -hex 16)"
+    printf 'GARAGE_BROWSER_SECRET_KEY=%s\n' "$(openssl rand -hex 32)"
   } >> "${ENV_FILE}"
   chmod 600 "${ENV_FILE}"
   echo "Created local .env with generated Garage access credentials."
@@ -30,6 +32,19 @@ else
   if [[ -z "${GARAGE_DEFAULT_ACCESS_KEY:-}" || -z "${GARAGE_DEFAULT_SECRET_KEY:-}" ]]; then
     echo "${ENV_FILE} exists but does not contain Garage credentials." >&2
     echo "Set both GARAGE_DEFAULT_ACCESS_KEY and GARAGE_DEFAULT_SECRET_KEY, or remove the local .env and rerun this script." >&2
+    exit 1
+  fi
+
+  if [[ -z "${GARAGE_BROWSER_ACCESS_KEY:-}" && -z "${GARAGE_BROWSER_SECRET_KEY:-}" ]]; then
+    {
+      printf '\n# Generated locally by scripts/init.sh for the anonymous read-only browser.\n'
+      printf 'GARAGE_BROWSER_ACCESS_KEY=GK%s\n' "$(openssl rand -hex 16)"
+      printf 'GARAGE_BROWSER_SECRET_KEY=%s\n' "$(openssl rand -hex 32)"
+    } >> "${ENV_FILE}"
+    echo "Added generated Garage browser credentials to the existing local .env."
+  elif [[ -z "${GARAGE_BROWSER_ACCESS_KEY:-}" || -z "${GARAGE_BROWSER_SECRET_KEY:-}" ]]; then
+    echo "${ENV_FILE} contains only one of the two Garage browser credentials." >&2
+    echo "Set both GARAGE_BROWSER_ACCESS_KEY and GARAGE_BROWSER_SECRET_KEY, or remove both entries and rerun this script." >&2
     exit 1
   fi
   echo "Using existing local .env."

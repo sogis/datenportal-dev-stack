@@ -1,0 +1,50 @@
+// Local browser check; no delivery is submitted. Uses the editor's Playwright installation.
+import { createRequire } from 'node:module';
+import assert from 'node:assert/strict';
+const require = createRequire(new URL('../../datenportal-datenblatt-editor/package.json', import.meta.url));
+const { chromium } = require('@playwright/test');
+const base = process.env.JENKINS_TEST_URL || 'http://localhost:8080';
+assert(['localhost', '127.0.0.1'].includes(new URL(base).hostname), 'Only local Jenkins may be tested');
+const browser = await chromium.launch();
+try {
+  const page = await browser.newPage();
+  await page.goto(base + '/login');
+  await page.locator('[name="j_username"]').fill(process.env.JENKINS_TEST_USER || 'admin');
+  await page.locator('[name="j_password"]').fill(process.env.JENKINS_TEST_PASSWORD || 'admin');
+  await page.locator('[name="Submit"]').click();
+  await page.goto(base + '/gretl-datenportal/start?organization=statistikdienst&dataset=ch.so.bevoelkerung.altersstruktur');
+  const mode = page.locator('[name="PUBLICATION_MODE"]');
+  const csv = page.locator('[name="DATA_FILE"]');
+  const metadata = page.locator('[name="METADATA_FILE"]');
+  const issue = page.locator('[name="SERIES_ID"]');
+  const reload = page.locator('[name="RELOAD_PORTAL"]');
+  assert.equal(await mode.inputValue(), 'delivery');
+  assert(await issue.isHidden());
+  assert(!(await reload.isChecked()));
+  const file = { name: 'test.csv', mimeType: 'text/csv', buffer: Buffer.from('value\n1\n') };
+  await csv.setInputFiles(file);
+  assert(await issue.isVisible());
+  assert(await issue.evaluate(el => el.required));
+  await issue.fill('2025');
+  await mode.selectOption('repository-metadata');
+  assert(await csv.isDisabled() && await metadata.isDisabled() && await issue.isHidden());
+  assert.equal(await issue.inputValue(), '');
+  assert.equal(await csv.evaluate(el => el.files.length), 0);
+  await mode.selectOption('delivery');
+  assert(await csv.isEnabled() && await metadata.isEnabled());
+  await csv.setInputFiles(file);
+  await issue.fill('2026');
+  await csv.setInputFiles([]);
+  assert(await issue.isHidden());
+  assert.equal(await issue.inputValue(), '');
+  await page.goto(base + '/gretl-datenportal/start?organization=agi&dataset=ch.so.agi.av_nachfuehrungsstatistik.personal');
+  assert.equal(await page.locator('[name="SERIES_ID"]').count(), 0);
+  const generated = await (await page.request.get(base + '/job/gretl-datenportal-statistikdienst/config.xml')).text();
+  const pipeline = await page.evaluate(xml => new DOMParser().parseFromString(xml, 'application/xml').querySelector('script')?.textContent || '', generated);
+  assert(pipeline.includes("lock(resource: 'datenportal-topic-repository')"));
+  assert(pipeline.indexOf('lock(resource:') < pipeline.indexOf('prepareDatenportalWorkspace()'));
+  assert(generated.includes('PUBLICATION_MODE') && generated.includes('RELOAD_PORTAL'));
+  console.log('PASS: delivery/repository modes, CSV edition requirement, clearing uploads, standalone topic');
+} finally {
+  await browser.close();
+}

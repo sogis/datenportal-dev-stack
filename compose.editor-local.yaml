@@ -6,3 +6,4 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_BASE_PATH: ./
+        VITE_METADATA_SOURCE_URL: /ch.so.daten/current.json

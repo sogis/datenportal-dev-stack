@@ -63,7 +63,7 @@ services:
       - /ch.so.daten
       - --read-only
       - --dir-cache-time
-      - 5s
+      - 0s
     expose:
       - "8080"
     healthcheck:
@@ -89,6 +89,11 @@ services:
       THEMEN_REPO_URL: ""
       THEMEN_REPO_PATH: /workspace/themenrepo
       THEMEN_REPO_BRANCH: ${THEMEN_REPO_BRANCH:-main}
+      ORG_GRADLE_PROJECT_s3Publish: ${DATENPORTAL_S3_PUBLISH:-true}
+      ORG_GRADLE_PROJECT_publicationManifestUrl: ${DATENPORTAL_PUBLICATION_MANIFEST_URL:-http://downloads:8081/ch.so.daten/current.json}
+      ORG_GRADLE_PROJECT_catalogDownloadBase: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten
+      ORG_GRADLE_PROJECT_portalReloadUrl: ${DATENPORTAL_PORTAL_RELOAD_URL:-}
+      ORG_GRADLE_PROJECT_portalReloadToken: ${DATENPORTAL_PORTAL_RELOAD_TOKEN:-}
       ORG_GRADLE_PROJECT_s3Endpoint: ${DATENPORTAL_S3_ENDPOINT:-http://garage:3900}
       ORG_GRADLE_PROJECT_s3Region: ${DATENPORTAL_S3_REGION:-garage}
       ORG_GRADLE_PROJECT_s3BucketName: ${DATENPORTAL_S3_BUCKET:-ch.so.daten}

@@ -192,8 +192,7 @@ curl -fS \
 
 Diesen URL-Aufbau kann die Webapp weiterhin als normalen Link verwenden. Der
 Browser unterstützt ausschliesslich Lesen per GET und HEAD. Änderungen aus
-Jenkins, GRETL oder dem AWS-CLI erscheinen spätestens nach dem kurzen
-Verzeichniscache von fünf Sekunden.
+Jenkins, GRETL oder dem AWS-CLI erscheinen ohne zusätzlichen rclone-Verzeichniscache.
 
 Garage aktiviert den öffentlichen Zugriff weiterhin auf Bucket-Ebene. Wird
 der Website-Zugriff für `ch.so.daten` deaktiviert, blockiert Caddy sowohl die
@@ -255,6 +254,24 @@ setzt den Modus auf `dev`, mountet die lokale JCasC aus
 Themenrepo unter `/workspace/themenrepo` als read-only `working-tree`-Snapshot
 bereit. Das Jenkins-Home liegt in `jenkins-home`.
 
+Die [zentrale Jenkins-Konfigurationsreferenz](https://codeberg.org/edigonzales/datenportal-jenkins-dev/src/branch/main/docs/biblios/entwicklung/referenz-konfiguration.adoc)
+erklärt ENV-Variablen, Git-Schreibfreigabe und die Unterschiede zum Shellstart
+und Produktionsimage. Compose setzt hier `JENKINS_RUNTIME_MODE=dev`,
+`THEMEN_REPO_MODE=working-tree`, `THEMEN_REPO_URL=""`,
+`THEMEN_REPO_PATH=/workspace/themenrepo` sowie `CASC_JENKINS_CONFIG` fest.
+Die Modusvariable allein wählt keine JCasC-Datei aus. Gleichnamige Einträge
+in `.env` überschreiben diese festen Compose-Werte nicht; dafür wäre eine
+explizite Änderung beziehungsweise Compose-Override-Konfiguration erforderlich.
+`THEMEN_REPO_BRANCH` ist dagegen mit Default `main` interpoliert, wechselt
+im Snapshot-Modus aber keinen lokalen Branch.
+
+Nach Änderungen an Container-ENV oder Mounts muss der Service neu erstellt
+werden; `docker compose restart` reicht dafür nicht. Nach Änderungen am
+lokalen Themenrepo genügt ein erneuter Seeder-Lauf. Jeder Job arbeitet auf einer eigenen Kopie dieses Snapshots. Eine reine
+Vorschau verändert den gemeinsamen Stand nicht; ein publizierender Job führt
+dagegen die Gesamtdateien auf Garage als Eingang des nächsten Jobs weiter. Git-Rückschreiben bleibt im `working-tree`-Modus
+ausgeschlossen. Der gemeinsame Lock serialisiert derzeit den gesamten Lieferablauf.
+
 Das gemeinsame Image enthält Jenkins mit Java 21, Java 17 für GRETL/Gradle,
 Standard-Plugins, das Datenportal-Plugin und das beim Image-Bau erzeugte
 GRETL-/Gradle-Offline-Bundle. Das Bundle lädt GRETL `5.0.0-SNAPSHOT` beim Bau
@@ -313,3 +330,63 @@ Zugangsdaten. Jenkins verwendet im Dev-Stack ebenfalls nur die gemountete
 lokale Testkonfiguration; produktive S3-Credentials bleiben externe
 Deployment-Konfiguration. Der Datenblatt-Editor verwendet aktuell keine S3-
 Zugangsdaten und hat keinen serverseitigen Speicherpfad.
+
+## Gesamt-XTF publizieren
+
+Compose setzt `ORG_GRADLE_PROJECT_s3Publish=true` für die lokale Garage.
+`DATENPORTAL_S3_PUBLISH=false` schaltet auf Vorschau. Der Eingangsverweis liegt
+intern unter `http://downloads:8081/ch.so.daten/current.json`; dies lässt sich mit
+`DATENPORTAL_PUBLICATION_MANIFEST_URL` überschreiben. Öffentliche Distributionen
+verwenden `http://localhost:<GARAGE_PUBLIC_PORT>/ch.so.daten`. HTTP-Downloads
+laufen ohne Gradles `--offline`; Abhängigkeiten bleiben im Offline-Bundle.
+
+Vor dem ersten Standardjob muss der administrative Root-Task
+`initializePublication` des Themenrepos bei pausierten Lieferjobs ausgeführt
+werden. Der [Themenrepo-Vertrag](https://codeberg.org/edigonzales/datenportal-themenrepo/src/branch/main/docs/biblios/entwicklung/lieferverarbeitung.adoc)
+erklärt Aufruf und Migration. Er publiziert bei fehlenden Daten zunächst
+`catalog: null` und verweigert einen bereits vorhandenen Verweis.
+
+Das Formular bietet Lieferung mit Upload oder gezielten Repository-Abgleich
+ohne Datei. Ein Seeder-Lauf aktualisiert Formularparameter und Jenkinsfile.
+`DATENPORTAL_PORTAL_RELOAD_URL` und das externe Secret
+`DATENPORTAL_PORTAL_RELOAD_TOKEN` ermöglichen einen pro Lauf wählbaren Reload;
+standardmässig sind beide leer. Das Portal wird weiterhin über seinen eigenen
+lokalen Startvertrag betrieben, nicht als zusätzlicher Compose-Service.
+
+Der lokale Editor-Build setzt `VITE_METADATA_SOURCE_URL=/ch.so.daten/current.json`.
+Beim unveränderten Registry-Image kann die Manifestadresse im Quellendialog
+angegeben werden, sobald das Image diese Funktion enthält. Caddy liefert
+Bucket-Inhalte ohne dauerhaften Cache; rclone verwendet `--dir-cache-time 0s`.
+Nach Änderungen an der gemounteten Caddy-Konfiguration wird diese mit
+`docker compose exec downloads caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`
+neu geladen; ein unveränderter Container übernimmt Dateiedits nicht durch `up -d`.
+
+Für die isolierte S3-/Git-Abnahme:
+
+```bash
+python3 scripts/test-publication.py
+```
+
+Der Test erstellt eine eigene Garage, einen öffentlichen Lesedienst und einen
+Testproxy zur Fehlerauslösung. Alle Container und das Testnetz werden danach
+entfernt; Testberichte und ein lokales Bare-Repository bleiben im ausgegebenen
+temporären Verzeichnis. Laufende Stack-Volumes und Zugangsdaten bleiben unberührt.
+
+Der Portal-Test startet die bestehende lokale `bootRun`-Konfiguration gegen eine
+isolierte HTTP-Quelle und prüft den leeren Anfangsstand, Reload und Fehlererhalt:
+
+```bash
+python3 scripts/test-portal-manifest.py
+```
+
+Nach Plugin-Installation und Seeder prüft der lokale Formular-Browsertest beide
+Modi, die bedingte Ausgabe und das Leeren der Uploadfelder. Er startet keinen
+Lieferjob und verwendet Playwright aus dem Editor-Repository:
+
+```bash
+node scripts/test-jenkins-form.mjs
+```
+
+Er verwendet standardmässig den lokalen Zugang `admin`/`admin` auf Port 8080;
+abweichende lokale Werte kommen aus `JENKINS_TEST_URL`, `JENKINS_TEST_USER` und
+`JENKINS_TEST_PASSWORD`.

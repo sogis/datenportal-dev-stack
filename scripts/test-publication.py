@@ -43,13 +43,13 @@ def service(name,image,*args,env=None,volumes=()):
 def git(*args):return run('git','-C',str(REPO),*args)
 def control(**kwargs): (WORK/'control.json').write_text(json.dumps(kwargs))
 
-def gradle(name,extra=(),root=False,success=True,write=False):
+def gradle(name,extra=(),root=False,success=True,write=False,task=None):
     project='/test/repo' if root else '/test/repo/statistikdienst'
     command=['docker','run','--rm','--network',NET,'--user','jenkins','--env-file',str(WORK/'gradle.env'),
         '-v',str(WORK)+':/test','-v',str(STACK.parent/'datenportal-pilot-daten')+':/pilot:ro','--entrypoint','/bin/bash',IMAGE,
         '-c','/usr/local/bin/configure-duckdb-extensions.sh; git config --global --add safe.directory /test/repo; exec "$@"','bash',
         '/test/repo/shared/bin/gradlew-java17.sh','--no-daemon','-I','/test/repo/shared/gradle/init.gradle','-p',project,
-        'initializePublication' if root else 'publishToDatenportal']
+        task or ('initializePublication' if root else 'publishToDatenportal')]
     if not root:command+=['-Pdataset='+DATASET]
     if write:command+=['-PgitWriteBack=true','-PtopicRepositoryMode=managed-git','-PtopicRepositoryUrl=file:///test/accepted.git',
         '-PtopicRepositoryBranch=main','-PgitBaseRevision='+git('rev-parse','HEAD'),'-PgitCommitterName=Test','-PgitCommitterEmail=test@example.invalid']
@@ -135,6 +135,13 @@ try:
     baseline=current()
     report=gradle('preview',['-PpublicationMode=repository-metadata','-Ps3Publish=false','-PreloadPortal=true'])
     assert current()==baseline and report['mode']=='preview' and report['reload']=='not-requested'
+    # preparePublication never enters the write chain, even with all write switches enabled.
+    prepare_head=git('rev-parse','HEAD')
+    report=gradle('prepare-only',['-PpublicationMode=repository-metadata','-PgitWriteBack=true','-PreloadPortal=true',
+                                '-Ps3AccessKey=','-Ps3SecretKey='],task='preparePublication')
+    assert current()==baseline and git('rev-parse','HEAD')==prepare_head
+    assert report['mode']=='preview' and report['publication']=='not-published'
+    assert report['git']=='not-requested' and report['reload']=='not-requested'
     source_sheet=(REPO/REL).read_bytes()
     source_head=git('rev-parse','HEAD')
     for label in ['working-tree-first','working-tree-next']:

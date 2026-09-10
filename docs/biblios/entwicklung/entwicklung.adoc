@@ -1,0 +1,94 @@
+[[stack-entwicklung]]
+= Entwicklung und Tests
+:page-layout: docs
+
+== Änderungen in den laufenden Stack übernehmen
+
+[cols="2,4",options="header"]
+|===
+|Änderung |Nötiger Schritt
+|Themenrepo-XTF, YAML, Shared-Gradle oder Jenkinsfile |Im `working-tree`-Stack erneut seeden, dann neuen Job starten. Für ein geändertes Datenblatt zusätzlich «Datenblatt aus Repository übernehmen» ausführen. Seeden allein publiziert nichts.
+|Plugin-Code oder Jelly-Formular |`./scripts/up.sh --local-jenkins` baut HPI und Image, ersetzt das Plugin im Jenkins-Volume und erzeugt Jenkins neu. Danach Seeder ausführen, insbesondere für Parameter-/Pipelineänderungen.
+|GRETL-Version, zusätzliche Abhängigkeiten, Modelle/Extensions im Offline-Bundle, Jenkins-Dockerfile |Jenkins lokal neu bauen und starten; anschliessend seeden, falls Repository-/Jobdefinitionen betroffen sind.
+|Editor-Code oder Vite-Buildkonfiguration |`./scripts/up.sh --local-editor --local-jenkins` für beide lokalen aktuellen Komponenten; für reinen Editor-Update die untenstehenden Compose-Aufrufe verwenden.
+|Compose-ENV, Ports, Mounts oder Image |Betroffenen Service mit denselben Compose-Overrides neu erzeugen. `restart` allein reicht nicht.
+|Gemountete JCasC |Jenkins neu starten; danach für geänderte Repository-Konfiguration seeden. Globale Build-Freigaben werden gemäss Plugin-Vertrag aktuell gelesen.
+|`services/caddy/Caddyfile` |Explizit Caddy reloaden; unverändertes `up -d` lädt den Dateiinhalt nicht neu.
+|Portal-Code oder Quellkonfiguration |Gemäss Portal-Anleitung neu bauen/starten. Ein Katalog-Reload ändert keine Startkonfiguration.
+|===
+
+Reiner Editor-Update bei bereits lokal gebauten Images:
+
+[source,bash]
+----
+docker compose -f compose.yaml -f compose.editor-local.yaml \
+  -f compose.jenkins-local.yaml build datenblatt-editor
+docker compose -f compose.yaml -f compose.editor-local.yaml \
+  -f compose.jenkins-local.yaml up -d --no-deps datenblatt-editor
+----
+
+Jenkins komplett aktualisieren, anschliessend `gretl-datenportal-seed` in Jenkins
+starten und dessen Erfolg kontrollieren:
+
+[source,bash]
+----
+./scripts/up.sh --local-editor --local-jenkins
+----
+
+Dabei werden nur das Datenportal-Plugin und sein entpacktes Verzeichnis gezielt
+ersetzt. Eine Volume-Löschung gehört nicht zum Updateablauf. Ein manueller
+Image-Build allein ersetzt kein bereits im Jenkins-Volume installiertes Plugin.
+
+Caddy-Konfiguration übernehmen:
+
+[source,bash]
+----
+docker compose exec downloads caddy reload \
+  --config /etc/caddy/Caddyfile --adapter caddyfile
+----
+
+== Vorhandene Prüfungen
+
+Für reine Dokumentationsänderungen genügen Quellenabgleich, Syntax-/Linkprüfung,
+Rendering und `git diff --check`. Die folgenden Laufzeittests sind für
+Implementierungsänderungen und gezielte lokale Abnahmen vorgesehen.
+
+[cols="2,3,4",options="header"]
+|===
+|Prüfung |Voraussetzungen |Umfang und Nebenwirkungen
+|`docker compose … config --quiet` |Initialisierte ignorierte Konfiguration |Compose-Auflösung mit den tatsächlich verwendeten Override-Dateien; kein Start, keine Secret-Ausgabe.
+|`./scripts/smoke-test.sh` |Laufender Stack, Bash, Docker, curl; lokale JCasC mit `admin` / `admin` |Temporäre S3-Objekte, Schreib-/Leserechte, CORS, Editor-Pfade und Jenkins-API. Sperrt Websitezugriff kurzzeitig und stellt ihn im Cleanup wieder her. Nur bei ruhendem lokalen Betrieb ausführen. Prüft keinen vollständigen Lieferzyklus und keinen Portalbestand.
+|`python3 scripts/test-publication.py` |Python 3, Docker, Git, aktuelles Jenkins-Testimage, Themenrepo und Pilotdaten als Geschwister |Eigene Garage, HTTP-Lesedienst, Fehlerproxy, Netzwerk und isoliertes Bare-Repo. Lieferfolgen, S3-/Git-Fehlerfälle. Eigene Container werden entfernt; Berichte bleiben im ausgegebenen temporären Verzeichnis. Keine Nutzung laufender Stack-Volumes.
+|`python3 scripts/test-portal-manifest.py` |Python 3, Portal-Checkout und dessen JDK-25-/Frontend-Buildvoraussetzungen |Eigene HTTP-Quelle und temporärer lokaler `bootRun`-Prozess; Null-Katalog, Reload und Fehlererhalt. Stoppt den eigenen Prozess, ersetzt kein Portal-Deployment.
+|`node scripts/test-jenkins-form.mjs` |Node 22, Playwright aus installiertem Editor-`node_modules` samt Browser, laufender aktueller Jenkins und erfolgreicher Seed |Beide Formularmodi, Ausgabepflicht, Feldbereinigung und Pipeline-Lock. Startet keinen Lieferjob.
+|===
+
+Testparameter, insbesondere die verschiedenen Image- und Portdefaults, stehen
+in xref:konfiguration.adoc[Konfiguration]. Die Fixtures kommen aus
+`datenportal-pilot-daten`; sie sind keine produktiven Datenquellen.
+
+Für die Prüfungen innerhalb des tatsächlichen Jenkins-Images:
+
+[source,bash]
+----
+../datenportal-jenkins-dev/bin/test-image-duckdb.sh datenportal-jenkins:local
+../datenportal-jenkins-dev/bin/test-image-publication.sh datenportal-jenkins:local
+----
+
+Diese Skripte prüfen DuckDB/Extensions und GRETL-/SQL-Verarbeitung ohne
+Container-Netzwerk, einschliesslich XLSX-/Parquet-Rücklesen und Lieferfolgen mit
+lokalen Fixtures. Abhängigkeiten und Modelle müssen zuvor im Image enthalten
+sein. Der Image-Build führt den DuckDB-Test bereits aus; die umfassende
+Publikationsprüfung kann dort über `RUN_PUBLICATION_TESTS=1` aktiviert werden.
+S3-HTTP-Integration ist eine separate Prüfung mit lokalem Netzwerk.
+
+Komponentenchecks bleiben in ihren Repositories beschrieben:
+
+* link:https://codeberg.org/edigonzales/datenportal-jenkins-gretl-plugin/src/branch/main/README.md[Plugin: Maven-Tests und HPI]
+* link:https://codeberg.org/edigonzales/datenportal-sodata/src/branch/main/docs/operations.md[Portal: Gradle-/Browserchecks]
+* link:https://codeberg.org/edigonzales/datenportal-datenblatt-editor/src/branch/main/docs/operations.md[Editor: Tests, Build und PWA-Prüfung]
+
+Nach einer vollständigen Integrationsänderung ausserdem Erststart,
+Initialisierung, Lieferung, Repository-Abgleich und Vorschau anhand
+xref:inbetriebnahme.adoc[der Inbetriebnahme] nachvollziehen. Echte Git-Schreibtests
+nur gegen ein separates lokales Bare-Repository ausführen.

@@ -1,0 +1,226 @@
+[[stack-inbetriebnahme]]
+= Lokale Inbetriebnahme und Lieferablauf
+:page-layout: docs
+
+== Dienste, Adressen und Seeder
+
+Nach xref:start.adoc[dem lokalen Start] Jenkins unter
+`http://localhost:8080/` öffnen; die lokale JCasC stellt `admin` / `admin`
+bereit. Das Plugin erzeugt `gretl-datenportal-seed` automatisch. Diesen Job
+starten und einen erfolgreichen Abschluss sowie die erzeugten Organisationsjobs
+prüfen. Seine periodische Ausführung ersetzt diese Erstprüfung nicht.
+
+Im Stack kopiert der Seeder den lokalen Arbeitsbaum einschliesslich
+uncommitteter Änderungen. Ein Lieferjob verwendet eine eigene Kopie des
+Seeder-Snapshots. Nach lokalen Änderungen vor dem nächsten Job erneut seeden.
+Ein Seeder-Lauf publiziert keine XTF und initialisiert keinen S3-Gesamtstand.
+Die Organisationsberechtigungen aus dem Themenrepo gelten für beide Formularmodi.
+
+[cols="2,3,3",options="header"]
+|===
+|Zweck |Host/Browser |Innerhalb des Compose-Netzes
+|S3-Schreiben |`http://localhost:3900` |`http://garage:3900`
+|Manifest lesen |`http://localhost:8081/ch.so.daten/current.json` |`http://downloads:8081/ch.so.daten/current.json`
+|Editor |`http://localhost:8081/metadaten-editor/` |`http://datenblatt-editor:8080/` (ohne öffentlichen Prefix)
+|Jenkins |`http://localhost:8080/` |`http://jenkins:8080/`
+|Portal, separat gestartet |`http://localhost:8082/` |Docker Desktop: `http://host.docker.internal:8082/`
+|===
+
+`localhost` im Jenkins-Container bezeichnet Jenkins selbst. Interne Namen wie
+`downloads` sind umgekehrt im Browser normalerweise nicht auflösbar. Deshalb
+sind Manifest-Leseadresse und öffentliche Downloadbasis getrennt konfiguriert.
+
+== Ersten Gesamtstand administrativ erzeugen
+
+Dies ist ein einmaliger administrativer Schritt, keine dritte Formularvariante.
+Standardjobs benötigen bereits eine lesbare `current.json`. Fehlt sie, brechen
+sie ab; sie wechseln nicht still auf Git oder einen leeren Bestand.
+
+. In Jenkins unter «Jenkins verwalten» das Herunterfahren vorbereiten (Quiet Down), sodass keine neuen Builds starten. Laufende Builds vollständig abwarten. Jenkins selbst weiterlaufen lassen; der folgende Aufruf läuft im Container.
+. Die Repository-Datenblätter und `shared/data/offices.xtf` prüfen. Der Root-Task verarbeitet alle Themen, daher müssen auch nicht für die erste Lieferung ausgewählte Datenblätter gültig sein.
+. Sicherstellen, dass die beabsichtigte Manifestadresse noch nicht existiert. Nur HTTP 404 gilt als Erstinitialisierung. Ein vorhandener oder beschädigter Verweis darf nicht einfach gelöscht werden.
+. In einer neuen beschreibbaren Arbeitskopie initialisieren:
+
+[source,bash]
+----
+docker compose exec -T jenkins bash -s <<'SH'
+set -euo pipefail
+publication_init_dir=$(mktemp -d /var/jenkins_home/datenportal-initialize.XXXXXX)
+tar -C /workspace/themenrepo \
+  --exclude=.git --exclude=.gradle --exclude=build --exclude=.DS_Store \
+  -cf - . | tar -C "$publication_init_dir" -xf -
+cd "$publication_init_dir"
+./shared/bin/gradlew-java17.sh --no-daemon \
+  -I "$PWD/shared/gradle/init.gradle" initializePublication \
+  -Ps3Publish=true -PgitWriteBack=false -PreloadPortal=false
+printf 'Initialisierung: %s\n' "$publication_init_dir/build/publication/outputs"
+SH
+----
+
+Die Kopie liegt im Jenkins-Volume und bleibt für die Diagnose erhalten. Weder
+`/workspace/themenrepo` noch der Seeder-Snapshot dienen als Buildverzeichnis.
+Der Java-17-Wrapper benötigt einen beschreibbaren Checkout, unter anderem für
+`chmod` am Gradle Wrapper. Java, Offline-Bundle, S3-Credentials und Manifestadresse
+werden aus der vorhandenen Containerumgebung übernommen. Der explizite
+`-Ps3Publish=true` erlaubt diesen administrativen Upload auch bei einer sonst
+auf Vorschau gestellten Umgebung. Für HTTP-Downloads kein `--offline` ergänzen.
+
+Für eine Migration kann im selben Gradle-Aufruf zusätzlich
+`-PinitialCatalog=/var/jenkins_home/migration/published-catalog.xtf` angegeben
+werden. Diese Datei vorher bewusst aus dem bisherigen Bestand bereitstellen:
+
+[source,bash]
+----
+docker compose exec -T jenkins mkdir -p /var/jenkins_home/migration
+docker compose cp ./migration/published-catalog.xtf \
+  jenkins:/var/jenkins_home/migration/published-catalog.xtf
+----
+
+`./migration/published-catalog.xtf` ist dabei eine vom Administrator
+bereitgestellte lokale Quelle, kein mitgeliefertes Fixture. Sie muss im
+Container lesbar sein. Ein noch vorhandener Git-Katalog wird nur mit einem
+expliziten `initialCatalog` übernommen. Ohne Migration und Datenbestand entsteht
+`catalog: null`. Der Initialaufbau schreibt niemals Git.
+
+Erwartete Ergebnisse: validierte Gesamt-XTF, `report.json` und Manifest in
+`build/publication/outputs/`; versionierte XTF und `current.json` auf Garage.
+Der Verweis wird erst nach erfolgreichem Upload und Rücklesen umgeschaltet.
+Zur öffentlichen Prüfung (Ports gegebenenfalls anpassen):
+
+[source,bash]
+----
+curl -fS http://localhost:8081/ch.so.daten/current.json
+python3 - <<'PY'
+import json
+from urllib.request import urlopen
+base = 'http://localhost:8081/ch.so.daten/'
+with urlopen(base + 'current.json') as response:
+    manifest = json.load(response)
+for key in ('datasheets', 'catalog'):
+    name = manifest[key]
+    if name is not None:
+        with urlopen(base + name) as response:
+            print(key, response.status, len(response.read()), 'Bytes')
+PY
+----
+
+Danach Quiet Down in Jenkins abbrechen und die Standardjobs wieder freigeben.
+Bei einem Initialisierungsfehler zuerst Bericht und S3-Verweis prüfen. Ein
+erneuter Initialaufbau ist nach erfolgreicher Übernahme absichtlich gesperrt.
+
+== Erste Lieferung und Repository-Abgleich
+
+Unter `/gretl-datenportal/` Organisation und Thema wählen:
+
+* «Lieferung verarbeiten»: CSV, Datenblatt-XTF/XML oder beides hochladen.
+  Mindestens eine Datei ist erforderlich. Bei CSV für eine Serie erscheint
+  «Ausgabe», etwa `2025`; auch noch nicht erfasste Ausgaben sind zulässig.
+* «Datenblatt aus Repository übernehmen»: keine Uploads. Das ausgewählte
+  Datenblatt aus der Buildkopie ersetzt gezielt die fachlichen Metadaten im
+  angenommenen Gesamtstand. Für Änderungen am lokalen Arbeitsbaum zuvor seeden.
+
+Ohne CSV wird eine Ausgabe ignoriert. Metadatenverarbeitung erhält angenommene
+Lieferdaten, Distributionen und Kennzahlen und erzeugt keine neuen CSV-/XLSX-/
+Parquet-Dateien. Ein nur per CSV erstmals angeliefertes Thema kann das
+Repository-Datenblatt als Ausgangspunkt verwenden. Fachliche ID- oder
+Dataset/Serie-Typänderungen sind manuelle Migrationen.
+
+Ein konkretes Serienbeispiel aus den vorhandenen Pilotdaten:
+
+. Organisation `statistikdienst`, Thema `ch.so.bevoelkerung.altersstruktur` auswählen.
+. «Lieferung verarbeiten» wählen und als Datendatei `../datenportal-pilot-daten/ch.so.bevoelkerung.altersstruktur/so_bevo_altersstruktur_2025.csv` im Dateidialog auswählen.
+. Ausgabe `2025` eintragen; Metadatenupload leer lassen, damit die angenommene Sammlung verwendet wird.
+. Zunächst ohne Reload starten und erfolgreichen Build sowie neuen Manifeststand prüfen.
+
+Für einen anschliessenden Metadatenabgleich das zugehörige Datenblatt in
+`../datenportal-themenrepo/statistikdienst/ch.so.bevoelkerung.altersstruktur/`
+bearbeiten, erneut seeden und dasselbe Thema im Repository-Modus ohne Upload
+starten. Der technische Bestand aus der ersten Lieferung bleibt erhalten.
+
+Der Standardjob hält `datenportal-topic-repository` vor dem Checkout bis zum
+Ende des Gradle-Aufrufs einschliesslich optionalem Reload. Auch Jobs verschiedener
+Organisationen warten darauf. Erst nach Freigabe lädt der nächste Job den dann
+gültigen S3-Verweis. Direkte administrative Gradle-Aufrufe nehmen diesen
+Jenkins-Lock nicht automatisch: deshalb die Pause bei der Initialisierung.
+
+Nach Erfolg Build-Artefakte und `report.json` sowie den neuen `releaseId` in
+`current.json` prüfen. Der Status einer S3-Publikation, Git und Reload werden
+getrennt ausgewiesen. `in_review`-Einträge sind im vollständigen Katalog
+enthalten, erscheinen aber nicht öffentlich im Portal.
+
+== Vorschau und Freigaben
+
+Compose aktiviert S3-Publikation nach Garage standardmässig. Für Vorschaujobs
+`DATENPORTAL_S3_PUBLISH=false` in `.env` setzen und Jenkins mit denselben
+Compose-Dateien neu erzeugen:
+
+[source,bash]
+----
+docker compose -f compose.yaml -f compose.editor-local.yaml \
+  -f compose.jenkins-local.yaml up -d --no-deps --force-recreate jenkins
+----
+
+Das verwendet die bereits gebauten lokalen Images. Es baut und synchronisiert
+kein Plugin. Anschliessend wie gewohnt eine Lieferung oder einen Repository-
+Abgleich starten. Vorschau liest den angenommenen Stand und erzeugt geprüfte
+Artefakte, führt aber keine Uploads, Git-Schreiboperationen oder Reloads aus.
+`preparePublication` ist auch bei gesetzter Publikationsfreigabe rein vorbereitend.
+Für Publikation die Variable wieder auf `true` setzen und Jenkins neu erzeugen.
+
+`working-tree` verhindert ausschliesslich Git-Rückschreiben. Ein erfolgreicher
+publizierender Stacklauf führt S3 als Eingang des nächsten Laufs weiter;
+Quellmount und Seeder-Snapshot bleiben unverändert. Git benötigt ausserhalb
+dieses Stackvertrags zusätzlich `managed-git`, ausdrückliche Schreibfreigabe,
+Commit-Identität und einen gültigen Repository-Kontext.
+
+== Portal und Editor anschliessen
+
+Der Editor aus dem lokalen Build verwendet `/ch.so.daten/current.json` als
+Standardquelle. Im Quellen-Dialog gespeicherte Adressen haben Vorrang: dort
+die Quelle bei Bedarf ausdrücklich auf die Manifestadresse umstellen. Dafür
+keine Browserdaten löschen; dabei gingen lokale Entwürfe verloren. Der Editor
+lädt ausschliesslich öffentlich per HTTP, erhält keine S3-Schlüssel und schreibt
+Änderungen als lokale Entwürfe beziehungsweise exportierbare XTF.
+
+Das Portal läuft separat auf dem Host. Im Repository `../datenportal-sodata`:
+
+[source,bash]
+----
+SPRING_PROFILES_ACTIVE=local ./gradlew bootRun --args='--server.port=8082 --datenportal.catalog.source-type=manifest --datenportal.catalog.http-url=http://localhost:8081/ch.so.daten/current.json --datenportal.catalog.download-url=http://localhost:8081/ch.so.daten --datenportal.catalog.duckdb.source-type=classpath --datenportal.catalog.duckdb.classpath-location=catalog.duckdb'
+----
+
+Das ist der vorhandene lokale Startvertrag, kein neues Portal-Deployment. JDK
+25 und die Buildvoraussetzungen aus dem Portal-README sind erforderlich. Die
+hier bewusst separat gewählte DuckDB ist die gebündelte *Fixture*. Ihre Views
+passen nicht automatisch zu neuen Lieferungen. Für fachliche «Erkunden»-Tests
+ist eine separat erzeugte passende DuckDB nötig; der Publikationsjob erzeugt
+sie noch nicht. Auch bei `catalog: null` ist eine gültige DuckDB erforderlich.
+Eine leere öffentliche Sicht ist dann korrekt; der XTF-Artefaktendpunkt liefert
+404. Ein ungültiger Verweis ist dagegen ein Ladefehler.
+
+Für optionalen Reload in der ignorierten `.env` setzen:
+
+* `DATENPORTAL_PORTAL_RELOAD_URL=http://host.docker.internal:8082/admin/catalog/reload`
+* `DATENPORTAL_PORTAL_RELOAD_TOKEN`: ein lokal erzeugtes Secret, ohne es zu committen.
+
+Die Hostadresse gilt für Docker Desktop. Bei anderen Docker-Installationen
+muss eine aus dem Container erreichbare Hostadresse separat eingerichtet und
+konfiguriert werden; Compose fügt keinen Linux-Host-Gateway-Eintrag hinzu.
+Jenkins nach ENV-Änderung neu erzeugen. Das Portal mit demselben Secret als
+`DATENPORTAL_ADMIN_RELOAD_TOKEN` starten. Beispielsweise in einer Bash-Shell
+vom Stack-Root, vor dem obigen Portal-Aufruf:
+
+[source,bash]
+----
+set -a
+. ./.env
+set +a
+: "${DATENPORTAL_PORTAL_RELOAD_TOKEN:?Reload-Token in .env setzen}"
+export DATENPORTAL_ADMIN_RELOAD_TOKEN="$DATENPORTAL_PORTAL_RELOAD_TOKEN"
+cd ../datenportal-sodata
+----
+
+Im Lieferformular «Portal nach Veröffentlichung neu laden» wählen (`RELOAD_PORTAL`, Default aus).
+Die Option hat nur bei Publikation eine Wirkung. Bei einem Reloadfehler bleibt
+S3 angenommen; das Portal behält seinen bisherigen Snapshot. Quelle und Token
+werden beim Portalstart konfiguriert, nicht durch den Reload geändert.

@@ -1,0 +1,133 @@
+[[stack-fehlerdiagnose]]
+= Fehlerdiagnose und Datenhaltung
+:page-layout: docs
+
+== Zustände auseinanderhalten
+
+Ein gesundes Jenkins bestätigt noch keine erfolgreiche Lieferung. Ein
+angenommener S3-Stand bestätigt noch keinen Portal-Reload. Bei Fehlern zuerst
+Buildkonsole und `report.json`, dann den aktuellen S3-Verweis und zuletzt den
+Portalstatus prüfen.
+
+[cols="2,4",options="header"]
+|===
+|Symptom / Zustand |Prüfung und Einordnung
+|Jenkins zeigt alte Felder oder Pipeline |Aktuelles HPI im Volume installieren, Jenkins neu erzeugen, Seeder erfolgreich ausführen. Ein Image-Build allein reicht nicht.
+|Repository-Änderung fehlt |Im Stack neuen Seed starten. Für Übernahme in Gesamt-XTF danach Repository-Abgleich ausführen. Der nächste Vorschaujob führt keinen alten Vorschaukandidaten weiter.
+|`current.json` fehlt |Vor erster Lieferung administrativ initialisieren. Bei vorher vorhandenem Bestand Ursache untersuchen; kein automatischer Bootstrap.
+|Manifest beschädigt oder referenzierte XTF fehlt |Ladefehler, kein Rückfall auf Git. Gewählte Manifestadresse, Dateinamen und HTTP-Status prüfen.
+|Katalog leer |`catalog: null` vor erster Datenlieferung oder alle Einträge fachlich zurückgehalten können gültig sein. Das Portal filtert nach Freigabe. Bei Null-Katalog ist sein XTF-Artefaktendpunkt 404 korrekt.
+|XTF-/CSV-Validierung fehlerhaft |Buildprotokolle und ausgewählte Modelle prüfen; erforderliche CSV-Modelle müssen vorhanden sein. IDs/Typwechsel nicht als normale Lieferung behandeln.
+|S3-Upload oder öffentliches Rücklesen fehlerhaft |Interne Endpoint-/Manifestadresse, Bucket, Schlüssel und Websitefreigabe prüfen. Öffentliche URLs müssen zum tatsächlichen Uploadziel passen.
+|Neue Objekte im Browser fehlen |Websitefreigabe und Leseschlüssel prüfen. Caddy-Konfiguration explizit reloaden. rclone ist mit Verzeichniscache `0s` konfiguriert.
+|Git-Push abgewiesen |Kein Umschalten des Manifests; Ausgangsrevision/Remote/Branch und konkurrierende Änderungen prüfen. Keine automatische Konfliktlösung.
+|Git erfolgreich, Manifestumschalten fehlgeschlagen |Git kann bereits weiter sein. Bericht und Verweis vergleichen, nicht blind erneut initialisieren.
+|Uploadantwort unklar |Bericht kann `unknown` ausweisen. Verweis zurücklesen und mit Kandidat vergleichen; nicht automatisch als unveröffentlicht behandeln.
+|Reload fehlgeschlagen |S3 bleibt angenommen, Portal behält alten Snapshot/Index. URL aus Jenkins erreichbar? Token auf beiden Seiten gleich? Portal-Logs und geschützten Status prüfen.
+|Editor zeigt eine alte Quelle |Gespeicherte Quelladresse im Dialog prüfen; diese hat Vorrang vor dem neuen Builddefault. Remote-Ladefehler werden angezeigt, kein stiller Rückfall auf einen alten Remote-Stand.
+|Erkunden zeigt andere/fehlende Tabellen |Separat konfigurierte `catalog.duckdb` passt nicht zum Katalog. Der Publikationsjob erzeugt oder synchronisiert sie noch nicht.
+|===
+
+Diagnose ohne Ausgabe der Secret-Konfiguration:
+
+[source,bash]
+----
+docker compose ps -a
+docker compose logs --tail=100 garage s3-browser downloads
+docker compose logs --tail=100 jenkins datenblatt-editor
+curl -fS http://localhost:8080/login -o /dev/null
+curl -fS http://localhost:8081/ch.so.daten/current.json
+curl -fS http://localhost:8082/actuator/health
+----
+
+Logs vor dem Weitergeben auf Zugangsdaten prüfen. Keine vollständige `.env`,
+kein vollständiges `docker compose config` und keine Containerumgebung in
+Tickets kopieren. Der öffentliche Portal-Health zeigt nur den Gesamtstatus;
+Details liefert der token-geschützte `/admin/catalog/status` gemäss
+link:https://codeberg.org/edigonzales/datenportal-sodata/src/branch/main/docs/operations.md[Portal-Betrieb].
+
+== Artefakte und Persistenz
+
+[cols="2,4",options="header"]
+|===
+|Ort |Inhalt und Lebensdauer
+|`garage-data`, `garage-meta` |Persistente S3-Objekte und Garage-Metadaten. Versionierte Gesamt-XTF bleiben erhalten; kein automatisches Aufräumen.
+|`jenkins-home` |Jobs, Historien, Plugins, Seeder-Snapshots, Buildkopien und Build-Artefakte; ausserdem bewusst angelegte Initialisierungskopien.
+|`build/publication/outputs/` in der jeweiligen Buildkopie |Gesamt-XTF, ausgewähltes Datenblatt unter `metadata/`, gegebenenfalls Datenexporte, Manifest, Diffs und `report.json`; Versionen zusätzlich unter `release/`. Protokolle unter `build/publication/`.
+|`.env`, `services/garage/garage.toml` |Lokale ignorierte Konfiguration und Secrets; gehören zur vorhandenen Garage-Instanz. Nicht mit Beispieldateien überschreiben.
+|Themenrepo-Quellmount |Read-only, bleibt bei Vorschau und S3-Publikation unverändert. Seeder-Snapshot ist ebenfalls keine fortgeschriebene Lieferbasis.
+|Editor-Browserprofil |Entwürfe und Quellenpräferenzen in IndexedDB, App-/Offline-Cache im Browser. Kein serverseitiges Backup oder automatischer Upload.
+|Temporäre Integrationstestverzeichnisse |Testberichte und gegebenenfalls isoliertes Bare-Repo; Pfad wird vom Test ausgegeben. Vom laufenden Stack getrennt.
+|===
+
+Die Pipeline archiviert ihre Ergebnisse als Jenkins-Build-Artefakte. Der Bericht
+ist Diagnosehilfe, keine zusätzliche Zustandsquelle. Für den nächsten Lauf
+entscheidet allein `current.json` über die beiden angenommenen Gesamt-XTF.
+
+CSV/XLSX/Parquet besitzen feste Dateinamen und können schon vor dem Umschalten
+überschrieben worden sein. *Ein Zurücksetzen von `current.json` ist daher kein
+vollständiger Daten-Rollback.* Ein Recovery-Verfahren muss Datenexporte,
+Gesamt-XTF, gegebenenfalls Git-Datenblatt und Portalzustand gemeinsam betrachten.
+Automatische Wiederaufnahme, vollständiger Rollback und Backup-/Restore-
+Automatisierung sind noch nicht Bestandteil des Standardjobs.
+
+== S3-Werkzeuge
+
+Der optionale AWS-Hilfsservice verwendet die lokalen Schreibcredentials,
+`http://garage:3900` und Region `garage`. Eine Auflistung ohne Host-AWS-Installation:
+
+[source,bash]
+----
+docker compose --profile tools run --rm aws s3 ls s3://ch.so.daten/
+----
+
+Für manuelle Testuploads ausserhalb des Publikationsvertrags eine eigene Datei
+und einen eigenen Namen verwenden; `current.json` oder feste Lieferdateinamen
+nicht beiläufig überschreiben. Der öffentliche Browser erlaubt nur Lesen.
+Caddy prüft vor jedem Bucketzugriff Garages Websitefreigabe; der eigene
+rclone-Schlüssel besitzt keine Schreib- oder Owner-Rechte. Weder Garage-Admin-API
+noch rclone werden direkt am Host veröffentlicht.
+
+== Stoppen und bewusstes Zurücksetzen
+
+Normales Stoppen erhält Garage und Jenkins:
+
+[source,bash]
+----
+./scripts/down.sh
+----
+
+Ein erneuter Start verwendet diese Volumes. Der Initialaufbau darf dann nicht
+wiederholt werden, wenn bereits ein Manifest existiert.
+
+`docker compose down -v` ist destruktiv: Es löscht Garage-Daten und -Metadaten
+*sowie Jenkins-Home mit Jobs und Historien*. Das ist kein Update- oder
+Fehlerbehebungsstandard. Nur für eine ausdrücklich gewollte vollständige lokale
+Neuinstanz nach Sicherung benötigter Daten verwenden. Die ignorierten Dateien
+auf dem Host und Editor-Entwürfe werden dadurch nicht gelöscht. Eine neue
+Instanz benötigt anschliessend wieder Start, Seeder und Initialaufbau.
+
+== Zuständigkeiten und verbleibende Betriebslücken
+
+Der Stack dokumentiert lokale Integration, Dienstverbindungen und Abnahme.
+Technische Schnittstellen bleiben bei ihren Komponenten:
+
+* link:https://codeberg.org/edigonzales/datenportal-themenrepo/src/branch/main/docs/biblios/entwicklung/lieferverarbeitung.adoc[Themenrepo: Manifest, SQL-Lieferverarbeitung und Publikationsparameter]
+* link:https://codeberg.org/edigonzales/datenportal-jenkins-dev/src/branch/main/docs/biblios/entwicklung/referenz-konfiguration.adoc[Jenkins-Laufzeit: ENV, JCasC, Java und Offline-Bundle]
+* link:https://codeberg.org/edigonzales/datenportal-jenkins-gretl-plugin/src/branch/main/docs/biblios/entwicklung/index.adoc[Plugin: Seeder, Checkout, Formular und Berechtigungen]
+* link:https://codeberg.org/edigonzales/datenportal-sodata/src/branch/main/docs/configuration.md[Portal: Quellen, DuckDB und Reload]
+* link:https://codeberg.org/edigonzales/datenportal-datenblatt-editor/src/branch/main/docs/operations.md[Editor: Quellen, Deployment und Offline-Verhalten]
+
+Das vorgesehene Repository `datenportal-dokumentation-betrieb` ist noch nicht
+Teil dieser Umsetzung. Dort sollen produktive Installationsreihenfolge,
+Infrastruktur und Zugänge, Erstinitialisierung/Migration, Abnahme, Updates,
+Überwachung sowie Backup und Wiederherstellung beschrieben werden. Es soll
+auf die technischen Referenzen verweisen, statt Parameter erneut zu definieren.
+Die Dokumentationswebsite wird durch diese Änderung nicht neu konfiguriert.
+
+Noch offen sind insbesondere die Erzeugung und Synchronisierung von
+`catalog.duckdb`, opendata.swiss, automatische Wiederaufnahme, ein vollständiges
+Recovery-Verfahren und Bereinigung alter XTF-Versionen. Das Portal besitzt
+weiterhin keinen hier eingeführten Docker-/Kubernetes-Deploymentvertrag.
+Einzel-XTF-Verarbeitung und parallele Standardlieferungen sind keine vorhandenen
+Funktionen; der gesamte Standardablauf bleibt durch den gemeinsamen Lock serialisiert.

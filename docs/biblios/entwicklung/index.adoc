@@ -1,0 +1,16 @@
+= Lokaler Datenportal-Stack
+:page-layout: docs
+:toc: left
+:toclevels: 3
+:sectnums:
+
+Diese Anleitung beschreibt den implementierten lokalen Integrationsstand.
+Alle Shellbeispiele werden, sofern nicht anders angegeben, im Root von
+`datenportal-dev-stack` ausgeführt. Die Parameterreferenz erklärt Abweichungen
+von den hier verwendeten Standardports.
+
+include::start.adoc[leveloffset=+1]
+include::inbetriebnahme.adoc[leveloffset=+1]
+include::konfiguration.adoc[leveloffset=+1]
+include::entwicklung.adoc[leveloffset=+1]
+include::fehlerdiagnose.adoc[leveloffset=+1]

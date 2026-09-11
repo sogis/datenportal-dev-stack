@@ -149,7 +149,7 @@ lokales Schwester-Repository fehlt, ist das im Ergebnis klar zu melden.
 Für fachliche und komponentenspezifische Aussagen zuerst die kanonischen
 Quellen konsultieren:
 
-- Themenrepo: [technische Entwicklungsdokumentation](https://codeberg.org/edigonzales/datenportal-themenrepo/src/branch/main/docs/biblios/entwicklung)
+- Themenrepo: [technische Entwicklungsdokumentation](https://codeberg.org/edigonzales/datenportal-themenrepo/src/branch/main/docs/biblios)
 - Jenkins-Dev: [lokaler Jenkins und Entwicklungsdokumentation](https://codeberg.org/edigonzales/datenportal-jenkins-dev/src/branch/main/docs/biblios/entwicklung)
 - Jenkins-Plugin: [Plugin-Entwicklungsdokumentation](https://codeberg.org/edigonzales/datenportal-jenkins-gretl-plugin/src/branch/main/docs/biblios/entwicklung)
 - Datenportal-Webapp: [README und Agent-Regeln](https://codeberg.org/edigonzales/datenportal-sodata)

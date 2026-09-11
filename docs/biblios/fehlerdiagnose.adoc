@@ -112,7 +112,7 @@ Instanz benötigt anschliessend wieder Start, Seeder und Initialaufbau.
 Der Stack dokumentiert lokale Integration, Dienstverbindungen und Abnahme.
 Technische Schnittstellen bleiben bei ihren Komponenten:
 
-* link:https://codeberg.org/edigonzales/datenportal-themenrepo/src/branch/main/docs/biblios/entwicklung/lieferverarbeitung.adoc[Themenrepo: Manifest, SQL-Lieferverarbeitung und Publikationsparameter]
+* link:https://codeberg.org/edigonzales/datenportal-themenrepo/src/branch/main/docs/biblios/lieferverarbeitung.adoc[Themenrepo: Manifest, SQL-Lieferverarbeitung und Publikationsparameter]
 * link:https://codeberg.org/edigonzales/datenportal-jenkins-dev/src/branch/main/docs/biblios/entwicklung/referenz-konfiguration.adoc[Jenkins-Laufzeit: ENV, JCasC, Java und Offline-Bundle]
 * link:https://codeberg.org/edigonzales/datenportal-jenkins-gretl-plugin/src/branch/main/docs/biblios/entwicklung/index.adoc[Plugin: Seeder, Checkout, Formular und Berechtigungen]
 * link:https://codeberg.org/edigonzales/datenportal-sodata/src/branch/main/docs/configuration.md[Portal: Quellen, DuckDB und Reload]

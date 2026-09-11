@@ -9,7 +9,7 @@ Stackskripten. Interne Shellvariablen sind keine zusätzlichen Einstellungen.
 Allgemeine Jenkins-, Java- und Offline-Bundle-Parameter bleiben in der
 link:https://codeberg.org/edigonzales/datenportal-jenkins-dev/src/branch/main/docs/biblios/entwicklung/referenz-konfiguration.adoc[Jenkins-Konfigurationsreferenz]
 kanonisch dokumentiert; fachliche Gradle-Properties im
-link:https://codeberg.org/edigonzales/datenportal-themenrepo/src/branch/main/docs/biblios/entwicklung/lieferverarbeitung.adoc[Publikationsvertrag].
+link:https://codeberg.org/edigonzales/datenportal-themenrepo/src/branch/main/docs/biblios/lieferverarbeitung.adoc[Publikationsvertrag].
 
 * Direkter Compose-Aufruf: Shellwerte haben vor `.env` Vorrang, anschliessend
   gelten die Defaults der interpolierten `${VARIABLE:-default}`-Ausdrücke.

@@ -6,7 +6,7 @@ und ihre Buildlogik bleiben in den jeweiligen Schwester-Repositories.
 
 Für den empfohlenen Entwicklungsweg werden Docker mit Compose v2, Bash,
 OpenSSL, Git, rsync, Maven sowie Java 17 und Java 21 benötigt. Die benötigten Checkouts und Java-Einstellungen stehen unter
-[Voraussetzungen und Start](docs/biblios/entwicklung/start.adoc).
+[Voraussetzungen und Start](docs/biblios/start.adoc).
 
 Aus dem Stack-Repository:
 
@@ -16,7 +16,7 @@ Aus dem Stack-Repository:
 
 Das baut die lokalen Komponenten, installiert das Plugin im Jenkins-Volume
 und startet die Dienste. Anschliessend folgen **Seeder und administrativer
-Initialaufbau** gemäss [Inbetriebnahme](docs/biblios/entwicklung/inbetriebnahme.adoc).
+Initialaufbau** gemäss [Inbetriebnahme](docs/biblios/inbetriebnahme.adoc).
 Ein gestarteter Container allein ist noch kein publizierbarer Datenbestand.
 
 | Dienst | Standardadresse vom Host/Browser |
@@ -28,14 +28,14 @@ Ein gestarteter Container allein ist noch kein publizierbarer Datenbestand.
 | Authentifizierte S3-API | http://localhost:3900 |
 | Portal, separat gemäss Anleitung gestartet | http://localhost:8082/ |
 
-Die vollständige [Entwicklungsdokumentation](docs/biblios/entwicklung/index.adoc)
+Die vollständige [Entwicklungsdokumentation](docs/biblios/index.adoc)
 führt durch:
 
-- [Voraussetzungen, Startoptionen und Images](docs/biblios/entwicklung/start.adoc)
-- [Initialisierung, Lieferungen, Vorschau und Portal-Anschluss](docs/biblios/entwicklung/inbetriebnahme.adoc)
-- [Parameter, Prioritäten und feste Compose-Werte](docs/biblios/entwicklung/konfiguration.adoc)
-- [Komponentenupdate und Tests](docs/biblios/entwicklung/entwicklung.adoc)
-- [Fehlerdiagnose, Datenhaltung und Dokumentationszuständigkeiten](docs/biblios/entwicklung/fehlerdiagnose.adoc)
+- [Voraussetzungen, Startoptionen und Images](docs/biblios/start.adoc)
+- [Initialisierung, Lieferungen, Vorschau und Portal-Anschluss](docs/biblios/inbetriebnahme.adoc)
+- [Parameter, Prioritäten und feste Compose-Werte](docs/biblios/konfiguration.adoc)
+- [Komponentenupdate und Tests](docs/biblios/entwicklung.adoc)
+- [Fehlerdiagnose, Datenhaltung und Dokumentationszuständigkeiten](docs/biblios/fehlerdiagnose.adoc)
 
 `working-tree` verhindert Git-Rückschreiben. S3-Publikation nach Garage ist im
 Stack dagegen standardmässig aktiviert. Lokale Secrets liegen ausschliesslich

@@ -83,7 +83,8 @@ expliziten `initialCatalog` übernommen. Ohne Migration und Datenbestand entsteh
 `catalog: null`. Der Initialaufbau schreibt niemals Git.
 
 Erwartete Ergebnisse: validierte Gesamt-XTF, `report.json` und Manifest in
-`build/publication/outputs/`; versionierte XTF und `current.json` auf Garage.
+`build/publication/outputs/`; versionierte XTF, `current.json` und
+`opendata.rdf` auf Garage. Ohne Katalog enthält RDF zunächst null Datensätze.
 Der Verweis wird erst nach erfolgreichem Upload und Rücklesen umgeschaltet.
 Zur öffentlichen Prüfung (Ports gegebenenfalls anpassen):
 
@@ -144,7 +145,7 @@ gültigen S3-Verweis. Direkte administrative Gradle-Aufrufe nehmen diesen
 Jenkins-Lock nicht automatisch: deshalb die Pause bei der Initialisierung.
 
 Nach Erfolg Build-Artefakte und `report.json` sowie den neuen `releaseId` in
-`current.json` prüfen. Der Status einer S3-Publikation, Git und Reload werden
+`current.json` prüfen. Der Status einer XTF-Publikation, Git, RDF und Reload werden
 getrennt ausgewiesen. `in_review`-Einträge sind im vollständigen Katalog
 enthalten, erscheinen aber nicht öffentlich im Portal.
 
@@ -172,6 +173,33 @@ publizierender Stacklauf führt S3 als Eingang des nächsten Laufs weiter;
 Quellmount und Seeder-Snapshot bleiben unverändert. Git benötigt ausserhalb
 dieses Stackvertrags zusätzlich `managed-git`, ausdrückliche Schreibfreigabe,
 Commit-Identität und einen gültigen Repository-Kontext.
+
+== RDF-Endpunkt prüfen
+
+Jede erfolgreiche Publikation aktualisiert zusätzlich
+`http://localhost:8081/ch.so.daten/opendata.rdf` (bei Standardports).
+Jenkins liest intern dieselbe Datei relativ zu seiner Manifestadresse.
+Es werden ausschliesslich freigegebene Datensätze und freigegebene Ausgaben
+mit ebenfalls freigegebener Serie exportiert. Serienmütter erscheinen nicht
+als zusätzliche Datensätze.
+
+[source,bash]
+----
+curl -fS -I http://localhost:8081/ch.so.daten/opendata.rdf
+curl -fS http://localhost:8081/ch.so.daten/opendata.rdf
+----
+
+Erwartet wird `Content-Type: application/rdf+xml`. Die Datei entspricht dem
+lokalen Artefakt `outputs/opendata.rdf`; der Job prüft die Bytes selbst.
+Der Ergebnisbericht nennt unter `opendata` Status, Datensatzanzahl und Adresse.
+Ohne Katalog oder nach Rücknahme der letzten Freigabe ist ein leerer RDF-Katalog
+beabsichtigt. Er ersetzt den bisherigen Export.
+
+RDF wird erst nach der XTF-Annahme aktualisiert. Ein Fehler dabei macht den
+Build rot, lässt aber den angenommenen XTF-Stand bestehen und verhindert den
+Portal-Reload. Details stehen unter xref:fehlerdiagnose.adoc[Fehlerdiagnose].
+Der reale opendata.swiss-Harvester wird hier nicht eingerichtet; insbesondere
+sein Löschverhalten bei einem leeren Katalog muss separat abgenommen werden.
 
 == Portal und Editor anschliessen
 

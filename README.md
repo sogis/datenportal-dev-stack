@@ -23,6 +23,7 @@ Ein gestarteter Container allein ist noch kein publizierbarer Datenbestand.
 |---|---|
 | Jenkins, lokal `admin` / `admin` | http://localhost:8080/gretl-datenportal/ |
 | Öffentlicher Bucket | http://localhost:8081/ch.so.daten/ |
+| RDF-Export nach erfolgreicher Publikation | http://localhost:8081/ch.so.daten/opendata.rdf |
 | Gültiger Gesamtstand nach Initialisierung | http://localhost:8081/ch.so.daten/current.json |
 | Editor | http://localhost:8081/metadaten-editor/ |
 | Authentifizierte S3-API | http://localhost:3900 |

@@ -12,6 +12,7 @@ import tempfile
 import time
 import urllib.request
 import urllib.error
+import xml.etree.ElementTree as ET
 
 STACK=Path(__file__).resolve().parents[1]
 TOPICS=STACK.parent/'datenportal-themenrepo'
@@ -26,6 +27,7 @@ REPO=WORK/'repo'
 shutil.copytree(TOPICS,REPO,ignore=shutil.ignore_patterns('.git','.gradle','build','.DS_Store'))
 OUTPUT=REPO/'statistikdienst/build/publication/outputs'
 (WORK/'control.json').write_text('{}')
+(WORK/'events.jsonl').write_text('')
 
 def run(*args, **kwargs):
     return subprocess.run(args, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs).stdout.strip()
@@ -41,9 +43,18 @@ def service(name,image,*args,env=None,volumes=()):
     run(*cmd,image,*args);containers.append(full)
 
 def git(*args):return run('git','-C',str(REPO),*args)
-def control(**kwargs): (WORK/'control.json').write_text(json.dumps(kwargs))
+def control(**kwargs):
+    # Die HTTP-Antwort bestätigt die aktive Testkonfiguration. Eine Steuerdatei
+    # im Docker-Desktop-Bindmount wäre verzögert sichtbar und könnte kurz fehlen.
+    (WORK/'control.json').write_text(json.dumps(kwargs))
+    request=urllib.request.Request(public.split('/public/')[0]+'/control',
+        data=json.dumps(kwargs).encode(),headers={'Content-Type':'application/json'},method='POST')
+    with urllib.request.urlopen(request,timeout=5) as response:
+        assert json.load(response)==kwargs
+def events(): return [json.loads(line) for line in (WORK/'events.jsonl').read_text().splitlines()]
 
 def gradle(name,extra=(),root=False,success=True,write=False,task=None):
+    event_start = len(events())
     project='/test/repo' if root else '/test/repo/statistikdienst'
     command=['docker','run','--rm','--network',NET,'--user','jenkins','--env-file',str(WORK/'gradle.env'),
         '-v',str(WORK)+':/test','-v',str(STACK.parent/'datenportal-pilot-daten')+':/pilot:ro','--entrypoint','/bin/bash',IMAGE,
@@ -58,7 +69,22 @@ def gradle(name,extra=(),root=False,success=True,write=False,task=None):
         result=subprocess.run(command+list(extra),stdout=stream,stderr=subprocess.STDOUT)
     if (result.returncode==0)!=success:
         raise AssertionError(name+'\n'+'\n'.join((WORK/(name+'.log')).read_text().splitlines()[-45:]))
-    return json.loads(((REPO/'build/publication/outputs' if root else OUTPUT)/'report.json').read_text())
+    report = json.loads(((REPO/'build/publication/outputs' if root else OUTPUT)/'report.json').read_text())
+    observed = events()[event_start:]
+    (WORK/(name+'-events.json')).write_text(json.dumps(observed, indent=2))
+    rdf_puts = [i for i,e in enumerate(observed) if e['method']=='PUT' and e['path'].endswith('/opendata.rdf')]
+    for index in rdf_puts:
+        assert report['publication']=='accepted', report
+        assert any(e['method']=='PUT' and e['path'].endswith('/current.json') and e['status']==200 for e in observed[:index])
+        assert any(e['method']=='GET' and e['path']=='/public/current.json' and e['status']==200 for e in observed[:index])
+        assert observed[index]['contentType']=='application/rdf+xml', observed[index]
+    if report['opendata']['status']=='not-published' and not report['opendata'].get('attempted'):
+        assert not rdf_puts
+    if report['reload']!='not-requested':
+        assert report['opendata']['status']=='accepted', report
+    if task=='preparePublication' or '-Ps3Publish=false' in extra:
+        assert not any(e['method']=='PUT' for e in observed), observed
+    return report
 
 try:
     run('docker','network','create',NET)
@@ -91,6 +117,10 @@ try:
     else: raise AssertionError('Temporary public gateway did not become ready')
     def current():
         with urllib.request.urlopen(public,timeout=10) as response:return json.load(response)
+    def public_rdf():
+        with urllib.request.urlopen(public.rsplit('/',1)[0]+'/opendata.rdf',timeout=10) as response:
+            assert response.headers.get_content_type()=='application/rdf+xml', response.headers
+            return response.read()
     (WORK/'gradle.env').write_text('\n'.join(k+'='+v for k,v in {
         'ORG_GRADLE_PROJECT_s3Publish':'true','ORG_GRADLE_PROJECT_s3Endpoint':'http://proxy:8000',
         'ORG_GRADLE_PROJECT_s3Region':'garage','ORG_GRADLE_PROJECT_s3BucketName':'ch.so.daten',
@@ -106,31 +136,79 @@ try:
     git('remote','add','origin','file:///test/accepted.git')
     report=gradle('initialize',root=True)
     assert report['publication']=='accepted' and current()['catalog'] is None
+    assert report['opendata']['status']=='accepted' and report['opendata']['datasetCount']==0
+    assert public_rdf()==(REPO/'build/publication/outputs/opendata.rdf').read_bytes()
     gradle('initialize-again',root=True,success=False)
     data=['-PdataFile=/pilot/'+DATASET+'/so_bevo_altersstruktur_2025.csv','-PseriesId=2025']
     report=gradle('data-and-git',data+['-PreloadPortal=true'],write=True)
     assert report['publication']=='accepted' and report['git']=='pushed' and report['reload']=='succeeded', report
+    assert report['opendata']['datasetCount']==1 and public_rdf()==(OUTPUT/'opendata.rdf').read_bytes()
     assert git('diff-tree','--no-commit-id','--name-only','-r','HEAD').splitlines()==[str(REL)]
     baseline=current()
+    baseline_rdf=public_rdf()
+    # Ein formal erlaubter Altkatalog kann issued vermissen. Für diesen Grenzfall
+    # wird nur die lokale Transformationsquelle ersetzt. Die Prüfung muss den
+    # gesamten Veröffentlichungsablauf noch vor dem ersten PUT/Git-Schritt stoppen.
+    legacy=ET.parse(OUTPUT/'published-catalog.xtf')
+    for element in legacy.iter():
+        for child in list(element):
+            if child.tag.endswith('}issued'): element.remove(child)
+    legacy.write(WORK/'missing-issued.xtf',encoding='UTF-8',xml_declaration=True)
+    (WORK/'missing-issued.gradle').write_text('''
+gradle.projectsEvaluated {
+    def p=gradle.rootProject
+    p.tasks.named('copyOpendataInput') {
+        doLast {
+            new File(p.buildDir,'publication/opendata/input/opendata.xml').bytes = new File('/test/missing-issued.xtf').bytes
+        }
+    }
+}
+''')
+    report=gradle('rdf-required-field-rejected',['-PpublicationMode=repository-metadata','-I','/test/missing-issued.gradle'],write=True,success=False)
+    assert report['publication']=='not-published' and report['git']=='not-requested'
+    assert not any(e['method']=='PUT' for e in json.loads((WORK/'rdf-required-field-rejected-events.json').read_text()))
+    assert current()==baseline and public_rdf()==baseline_rdf
     control(fail_catalog=True)
     gradle('partial-xtf-upload',['-PpublicationMode=repository-metadata'],success=False)
     assert current()==baseline
+    assert public_rdf()==baseline_rdf
     control()
     hook=WORK/'accepted.git/hooks/pre-receive';hook.write_text('#!/bin/sh\nexit 1\n');hook.chmod(0o755)
     # Change metadata to guarantee a Git commit rather than a no-op.
     delivered=WORK/'changed.xtf';delivered.write_text((REPO/REL).read_text().replace('Altersstruktur','Altersstruktur Test'))
     report=gradle('push-rejected',['-PmetadataFile=/test/changed.xtf'],write=True,success=False)
     assert current()==baseline and report['git']=='failed'
+    assert public_rdf()==baseline_rdf
     hook.unlink()
     control(fail_pointer=True)
     report=gradle('pointer-failure',['-PpublicationMode=repository-metadata'],success=False)
     assert current()==baseline and report['publication']=='not-published'
+    assert public_rdf()==baseline_rdf
     control(lose_pointer_response=True)
     report=gradle('pointer-response-lost',['-PpublicationMode=repository-metadata'],success=False)
     assert current()['releaseId']==report['releaseId'] and report['publication']=='accepted'
+    assert public_rdf()==baseline_rdf and not report['opendata'].get('attempted')
     control(reload_failure=True)
     report=gradle('reload-failure',['-PpublicationMode=repository-metadata','-PreloadPortal=true'],success=False)
     assert current()['releaseId']==report['releaseId'] and report['reload']=='failed'
+    # Der XTF-Stand bleibt auch bei einem anschliessenden RDF-Fehler angenommen.
+    # Geänderter Text verhindert, dass ein identischer alter Export als erfolgreicher
+    # Upload gewertet wird. Kein RDF-Fehler darf einen Portal-Reload auslösen.
+    for label, faults, expected in [
+        ('rdf-put-failure', {'fail_rdf':True}, 'not-published'),
+        ('rdf-response-lost', {'lose_rdf_response':True}, 'accepted'),
+        ('rdf-outcome-unknown', {'lose_rdf_response':True,'rdf_readback_unavailable':True}, 'unknown'),
+        ('rdf-corrupt-readback', {'corrupt_rdf_readback':True}, 'not-published'),
+    ]:
+        control()
+        before=public_rdf()
+        delivered.write_text((REPO/REL).read_text().replace('Altersstruktur','Altersstruktur '+label))
+        control(**faults)
+        report=gradle(label,['-PmetadataFile=/test/changed.xtf','-PreloadPortal=true'],success=False)
+        assert current()['releaseId']==report['releaseId'] and report['publication']=='accepted'
+        assert report['opendata']['status']==expected and report['reload']=='not-requested', report
+        control()
+        assert public_rdf()==(before if faults.get('fail_rdf') else (OUTPUT/'opendata.rdf').read_bytes())
     control()
     baseline=current()
     report=gradle('preview',['-PpublicationMode=repository-metadata','-Ps3Publish=false','-PreloadPortal=true'])
@@ -151,6 +229,15 @@ try:
         assert current()['releaseId']==report['releaseId']
         assert (REPO/REL).read_bytes()==source_sheet and git('rev-parse','HEAD')==source_head
         assert report['git']=='not-requested'
+    # Rücknahme der letzten Freigabe ersetzt den bisherigen RDF-Bestand durch
+    # einen leeren Katalog; die angenommenen technischen XTF-Einträge bleiben erhalten.
+    tree=ET.parse(REPO/REL)
+    for element in tree.iter():
+        if element.tag.endswith('}publicationStatus'): element.text='archived'
+    tree.write(delivered,encoding='UTF-8',xml_declaration=True)
+    report=gradle('rdf-last-withdrawn',['-PmetadataFile=/test/changed.xtf'])
+    assert report['opendata']['status']=='accepted' and report['opendata']['datasetCount']==0
+    assert not ET.fromstring(public_rdf()).findall('{http://www.w3.org/ns/dcat#}Dataset')
     print('PASS: real Garage, public readback, Git gate and publication failure scenarios',flush=True)
 finally:
     for container in reversed(containers):

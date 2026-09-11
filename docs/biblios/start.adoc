@@ -60,10 +60,13 @@ Beispieldefaults ersetzt. Fehlende Browser-Schlüssel können als Paar ergänzt
 werden; ein unvollständiges Paar ist ein Fehler. Secrets und bestehende
 Garage-Volumes müssen zusammenpassen.
 
-`garage-init` ist ein einmaliger Initialisierungscontainer: `Exited (0)` ist
-normal. Er erstellt den Bucket `ch.so.daten`, aktiviert dessen Website-Zugriff
-und CORS. `up.sh` stellt anschliessend die Read-only-Rechte des Browser-Schlüssels
-sicher. Jenkins und die übrigen laufenden Services sollen gesund sein.
+`garage-init` ist ein einmaliger Initialisierungscontainer. `up.sh` führt ihn mit
+`docker compose run --rm garage-init` aus und wartet auf seinen erfolgreichen
+Abschluss. Der Container wird danach entfernt und erscheint deshalb nicht als
+beendeter Container in `docker compose ps -a`. Er stellt den Bucket `ch.so.daten`
+bereit und aktiviert dessen Website-Zugriff und CORS. Anschliessend richtet
+`up.sh` die Read-only-Rechte des Browser-Schlüssels ein und startet die übrigen
+Dienste. Deren konfigurierte Healthchecks müssen erfolgreich sein.
 
 == Startoptionen und Images
 

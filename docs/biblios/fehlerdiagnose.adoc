@@ -5,7 +5,7 @@
 == Zustände auseinanderhalten
 
 Ein gesundes Jenkins bestätigt noch keine erfolgreiche Lieferung. Ein
-angenommener S3-Stand bestätigt noch keinen Portal-Reload. Bei Fehlern zuerst
+angenommener XTF-Stand bestätigt noch keinen RDF-Upload oder Portal-Reload. Bei Fehlern zuerst
 Buildkonsole und `report.json`, dann den aktuellen S3-Verweis und zuletzt den
 Portalstatus prüfen.
 
@@ -23,6 +23,9 @@ Portalstatus prüfen.
 |Git-Push abgewiesen |Kein Umschalten des Manifests; Ausgangsrevision/Remote/Branch und konkurrierende Änderungen prüfen. Keine automatische Konfliktlösung.
 |Git erfolgreich, Manifestumschalten fehlgeschlagen |Git kann bereits weiter sein. Bericht und Verweis vergleichen, nicht blind erneut initialisieren.
 |Uploadantwort unklar |Bericht kann `unknown` ausweisen. Verweis zurücklesen und mit Kandidat vergleichen; nicht automatisch als unveröffentlicht behandeln.
+|RDF-Erzeugung fehlgeschlagen |Pflichtfelder, `issued`, ungültige Exportkennungen oder Kollisionen prüfen. Die Vorbereitung bricht vor Upload/Git ab.
+|RDF-Upload oder Rücklesen fehlgeschlagen |`publication=accepted` kann bereits gelten. `opendata.status` getrennt prüfen: `not-published`, `accepted` nach geklärter verlorener Antwort oder `unknown` bei nicht klärbarem Ausgang. Kein Portal-Reload danach.
+|RDF enthält keine Datensätze |Bei `catalog: null` oder ohne `published`-Einträge beabsichtigt; bei Ausgaben muss auch die Serie freigegeben sein. Der leere Export ersetzt den bisherigen RDF-Bestand.
 |Reload fehlgeschlagen |S3 bleibt angenommen, Portal behält alten Snapshot/Index. URL aus Jenkins erreichbar? Token auf beiden Seiten gleich? Portal-Logs und geschützten Status prüfen.
 |Editor zeigt eine alte Quelle |Gespeicherte Quelladresse im Dialog prüfen; diese hat Vorrang vor dem neuen Builddefault. Remote-Ladefehler werden angezeigt, kein stiller Rückfall auf einen alten Remote-Stand.
 |Erkunden zeigt andere/fehlende Tabellen |Separat konfigurierte `catalog.duckdb` passt nicht zum Katalog. Der Publikationsjob erzeugt oder synchronisiert sie noch nicht.
@@ -53,7 +56,8 @@ link:https://codeberg.org/edigonzales/datenportal-sodata/src/branch/main/docs/op
 |Ort |Inhalt und Lebensdauer
 |`garage-data`, `garage-meta` |Persistente S3-Objekte und Garage-Metadaten. Versionierte Gesamt-XTF bleiben erhalten; kein automatisches Aufräumen.
 |`jenkins-home` |Jobs, Historien, Plugins, Seeder-Snapshots, Buildkopien und Build-Artefakte; ausserdem bewusst angelegte Initialisierungskopien.
-|`build/publication/outputs/` in der jeweiligen Buildkopie |Gesamt-XTF, ausgewähltes Datenblatt unter `metadata/`, gegebenenfalls Datenexporte, Manifest, Diffs und `report.json`; Versionen zusätzlich unter `release/`. Protokolle unter `build/publication/`.
+|`build/publication/outputs/` in der jeweiligen Buildkopie |Gesamt-XTF, `opendata.rdf`, ausgewähltes Datenblatt unter `metadata/`, gegebenenfalls Datenexporte, Manifest, Diffs und `report.json`.
+|`build/publication/release/` |Versionierte Gesamt-XTF für den Upload; liegt neben `outputs/`, nicht darin. Protokolle liegen direkt unter `build/publication/`.
 |`.env`, `services/garage/garage.toml` |Lokale ignorierte Konfiguration und Secrets; gehören zur vorhandenen Garage-Instanz. Nicht mit Beispieldateien überschreiben.
 |Themenrepo-Quellmount |Read-only, bleibt bei Vorschau und S3-Publikation unverändert. Seeder-Snapshot ist ebenfalls keine fortgeschriebene Lieferbasis.
 |Editor-Browserprofil |Entwürfe und Quellenpräferenzen in IndexedDB, App-/Offline-Cache im Browser. Kein serverseitiges Backup oder automatischer Upload.
@@ -63,6 +67,8 @@ link:https://codeberg.org/edigonzales/datenportal-sodata/src/branch/main/docs/op
 Die Pipeline archiviert ihre Ergebnisse als Jenkins-Build-Artefakte. Der Bericht
 ist Diagnosehilfe, keine zusätzliche Zustandsquelle. Für den nächsten Lauf
 entscheidet allein `current.json` über die beiden angenommenen Gesamt-XTF.
+`opendata.rdf` wird danach separat überschrieben und kann kurz den vorherigen
+Stand enthalten. Es ist kein Bestandteil der atomaren XTF-Umschaltung.
 
 CSV/XLSX/Parquet besitzen feste Dateinamen und können schon vor dem Umschalten
 überschrieben worden sein. *Ein Zurücksetzen von `current.json` ist daher kein
@@ -126,7 +132,7 @@ auf die technischen Referenzen verweisen, statt Parameter erneut zu definieren.
 Die Dokumentationswebsite wird durch diese Änderung nicht neu konfiguriert.
 
 Noch offen sind insbesondere die Erzeugung und Synchronisierung von
-`catalog.duckdb`, opendata.swiss, automatische Wiederaufnahme, ein vollständiges
+`catalog.duckdb`, der produktive opendata.swiss-Harvester-Anschluss, automatische Wiederaufnahme, ein vollständiges
 Recovery-Verfahren und Bereinigung alter XTF-Versionen. Das Portal besitzt
 weiterhin keinen hier eingeführten Docker-/Kubernetes-Deploymentvertrag.
 Einzel-XTF-Verarbeitung und parallele Standardlieferungen sind keine vorhandenen

@@ -16,15 +16,16 @@ link:https://codeberg.org/edigonzales/datenportal-themenrepo/src/branch/main/doc
   Leere Werte verwenden bei `:-` ebenfalls den Default. Feste YAML-Werte
   werden durch gleichnamige `.env`-Einträge nicht verändert.
 * `up.sh`: lädt `.env` als Shellcode mit Export. Es stellt danach nur die zuvor
-  gesetzten Shellwerte von `DATENPORTAL_JENKINS_IMAGE`, `JENKINS_PORT`,
-  `PLUGIN_SOURCE`, `PLUGIN_VERSION` und `PLUGIN_REPOSITORY_URL` wieder her.
+  gesetzten Shellwerte von `DATENPORTAL_JENKINS_IMAGE`, `DATENPORTAL_SODATA_IMAGE`,
+  `JENKINS_PORT`, `SODATA_PORT`, `PLUGIN_SOURCE`, `PLUGIN_VERSION` und
+  `PLUGIN_REPOSITORY_URL` wieder her.
   Für andere Variablen überschreibt eine Zuweisung in `.env` den Shellwert;
   fehlt sie dort, bleibt der geerbte Wert erhalten. Deshalb lokale Overrides
   bevorzugt in der ignorierten `.env` pflegen. Keine beliebigen fremden
   `.env`-Dateien sourcen.
-* `build-jenkins-local.sh` liest selbst keine `.env`. Es verwendet seine
-  Prozessumgebung und die unten genannten Defaults. Über `up.sh` erhält es
-  dessen bereits aufgelöste Umgebung.
+* `build-jenkins-local.sh` und `build-sodata-local.sh` lesen selbst keine
+  `.env`. Sie verwenden ihre Prozessumgebung und die unten genannten Defaults.
+  Über `up.sh` erhalten sie dessen bereits aufgelöste Umgebung.
 * `smoke-test.sh` lädt `.env` ohne die Ausnahmen von `up.sh`. Die drei
   weiteren Stacktests laden `.env` nicht automatisch.
 * Gradle: explizite `-Pname=wert` haben Vorrang vor der gleichnamigen
@@ -49,7 +50,9 @@ Compose-/Startaufrufs gemäss obiger Priorität. Wirksamkeit: Container neu erze
 |===
 |Parameter |Default / Pflicht |Verbraucher und Wirkung |Secret
 |`DATENPORTAL_JENKINS_IMAGE` |`sogis/datenportal-jenkins:0.1.0` |`up.sh`, Basis-Compose: Jenkins-Image. Lokales Override setzt stattdessen fest `datenportal-jenkins:local`. |nein
+|`DATENPORTAL_SODATA_IMAGE` |`sogis/datenportal-sodata:0.1.0` |`up.sh`, Basis-Compose: Portal-Image. Lokales Override setzt stattdessen fest `datenportal-sodata:local`. |nein
 |`JENKINS_PORT` |`8080` |Jenkins-Hostport und von Compose gesetzte `JENKINS_URL`; interner Port bleibt 8080. |nein
+|`SODATA_PORT` |`8082` |Portal-Hostport. Interner Port bleibt 8080; Jenkins erreicht das Portal als `http://sodata:8080`. |nein
 |`GARAGE_S3_PORT` |`3900` |Garage-S3-Hostport. Ändert nicht `http://garage:3900` im Netz. |nein
 |`GARAGE_PUBLIC_PORT` |`8081` |Downloads-Hostport, Initialisierungsumgebung und Jenkins-`catalogDownloadBase`. Interner Downloads-Port bleibt 8081. Portal-Start und Test-URLs gegebenenfalls separat anpassen. |nein
 |`THEMEN_REPO_BRANCH` |`main` |Jenkins/JCasC: gespeicherter Branch. Im festen `working-tree`-Modus kein Wechsel des lokalen Branches. Neuer Seed für Jobkontext. |nein
@@ -61,8 +64,8 @@ Compose-/Startaufrufs gemäss obiger Priorität. Wirksamkeit: Container neu erze
 |`DATENPORTAL_S3_ACL` |`private` |Nur Jenkins: `ORG_GRADLE_PROJECT_s3Acl`. Öffentliche lokale Lesbarkeit wird zusätzlich über die Garage-Website und den Lesedienst bereitgestellt. |nein
 |`DATENPORTAL_S3_PUBLISH` |`true` |Nur Jenkins: `ORG_GRADLE_PROJECT_s3Publish`; `false` erzeugt Vorschauen ohne Upload/Git/Reload. |nein
 |`DATENPORTAL_PUBLICATION_MANIFEST_URL` |`http://downloads:8081/ch.so.daten/current.json` |Nur Jenkins: `ORG_GRADLE_PROJECT_publicationManifestUrl`, Eingangsverweis. Ändert weder Editorquelle noch Portalquelle. |nein
-|`DATENPORTAL_PORTAL_RELOAD_URL` |leer; bei angefordertem publizierendem Reload erforderlich |Nur Jenkins: `ORG_GRADLE_PROJECT_portalReloadUrl`, geschützter Portal-POST-Endpunkt. Kein Portalstart dadurch. |nein
-|`DATENPORTAL_PORTAL_RELOAD_TOKEN` |leer; bei angefordertem publizierendem Reload erforderlich |Nur Jenkins: `ORG_GRADLE_PROJECT_portalReloadToken`. Portal muss separat denselben Wert als `DATENPORTAL_ADMIN_RELOAD_TOKEN` erhalten. |ja
+|`DATENPORTAL_PORTAL_RELOAD_URL` |`http://sodata:8080/admin/catalog/reload` |Nur Jenkins: `ORG_GRADLE_PROJECT_portalReloadUrl`, geschützter Portal-POST-Endpunkt im Compose-Netz. Kein Portalstart dadurch. |nein
+|`DATENPORTAL_PORTAL_RELOAD_TOKEN` |leer; bei angefordertem publizierendem Reload erforderlich |Jenkins `ORG_GRADLE_PROJECT_portalReloadToken` und Portal `DATENPORTAL_ADMIN_RELOAD_TOKEN` aus demselben Wert. |ja
 |===
 
 Die `DATENPORTAL_S3_*`-Overrides ändern nur den Jenkins-Uploadweg. Garage,
@@ -87,7 +90,9 @@ Wechsel des Storage-Backends.
 |Editorimage |Basis: `sogis/datenportal-datenblatt-editor:0.1.4`; lokales Override: `datenblatt-editor:local`, Buildquelle `../datenportal-datenblatt-editor`.
 |Editor-Buildargumente lokal |`VITE_BASE_PATH=./`, `VITE_METADATA_SOURCE_URL=/ch.so.daten/current.json`. Buildzeitwerte, keine Runtime-ENV.
 |Jenkinsimage lokal |`compose.jenkins-local.yaml`: fest `datenportal-jenkins:local`.
-|Öffentliche Leseschicht |Caddy prüft Garage-Websitefreigabe, setzt CORS und `Cache-Control: no-store`; rclone verwendet `--dir-cache-time 0s`. Bucket-Zugriff per GET/HEAD, keine anonymen Schreibrechte.
+|Portalimage lokal |`compose.sodata-local.yaml`: fest `datenportal-sodata:local`; Buildkontext `../datenportal-sodata` (über `SODATA_REPO_DIR` überschreibbar). Dockerfile und Buildlogik liegen im Portal-Repository.
+|Portal-Laufzeit |Manifest intern über `http://downloads:8081/ch.so.daten/current.json`; öffentliche Downloadbasis über `${GARAGE_PUBLIC_PORT}`; DuckDB als Classpath-Fixture `catalog.duckdb`; Reload-Token aus `DATENPORTAL_PORTAL_RELOAD_TOKEN`.
+|Öffentliche Leseschicht |Caddy prüft Garage-Websitefreigabe, setzt CORS und `Cache-Control: no-store`; rclone verwendet `--dir-cache-time 0s`. Bucket-Zugriff per GET/HEAD, keine anonymen Schreibrechte. Der Compose-Healthcheck ruft `GET /ch.so.daten/` ab und macht den Dienst damit für `depends_on` und `up --wait` prüfbar.
 |===
 
 Diese Werte lassen sich nur durch Änderung der zuständigen Konfiguration oder
@@ -99,9 +104,10 @@ ausgewählte Repository-Metadaten, nicht den letzten Publikationsstand.
 
 == Start- und Buildskripte
 
-Die Optionen `--local-editor`, `--local-jenkins`, `--registry-only`, `--help`
-und `-h` von `up.sh` stehen unter xref:start.adoc[Start]. `init.sh`, `down.sh`
-und `build-jenkins-local.sh` besitzen keine eigene öffentliche Optionsauswahl.
+Die Optionen `--local-editor`, `--local-jenkins`, `--local-sodata`,
+`--registry-only`, `--help` und `-h` von `up.sh` stehen unter
+xref:start.adoc[Start]. `init.sh`, `down.sh`, `build-jenkins-local.sh` und
+`build-sodata-local.sh` besitzen keine eigene öffentliche Optionsauswahl.
 Folgende Variablen des Build-Wrappers werden bei jedem Build neu ausgewertet;
 Einstellungsort ist die exportierte Prozessumgebung beziehungsweise `.env`
 bei Aufruf über `up.sh`. Keine davon ist ein Secret.
@@ -110,6 +116,7 @@ bei Aufruf über `up.sh`. Keine davon ist ein Secret.
 |===
 |Parameter |Default |Verbraucher / Priorität / Abgrenzung
 |`JENKINS_DEV_DIR` |`../datenportal-jenkins-dev` relativ zum Stack |Wählt das aufgerufene `bin/build-image.sh`; ändert nicht den Compose-JCasC-Mount.
+|`SODATA_REPO_DIR` |`../datenportal-sodata` relativ zum Stack |Buildkontext und Dockerfile für das lokale Portal-Image. Ändert nicht den Compose-Service `sodata` oder dessen Laufzeit-ENV.
 |`THEMEN_REPO_DIR` |`../datenportal-themenrepo` relativ zum Stack |Buildquelle für Vertrag und Offline-Bundle. Ändert nicht `/workspace/themenrepo` oder dessen festen Hostmount.
 |`PLUGIN_REPO` |`../datenportal-jenkins-gretl-plugin` relativ zum Stack |Lokale HPI-Buildquelle; nur beim Image-Bau.
 |`PLUGIN_HPI_SOURCE` |leer |Explizite existierende HPI-Datei hat Vorrang vor `PLUGIN_SOURCE` und überspringt lokale/Maven-Auflösung.
@@ -147,7 +154,7 @@ Tests und Nebenwirkungen stehen unter xref:entwicklung.adoc[Entwicklung und Test
 [cols="2,3,3,1",options="header"]
 |===
 |Parameter |Default |Verbraucher / Priorität |Secret
-|`GARAGE_PUBLIC_PORT`, `JENKINS_PORT` |`8081`, `8080` |`smoke-test.sh`; `.env` wird geladen und überschreibt dortige Shellwerte. Jenkins-URL wird daraus intern gebildet, kein `JENKINS_URL`-Override. |nein
+|`GARAGE_PUBLIC_PORT`, `JENKINS_PORT`, `SODATA_PORT` |`8081`, `8080`, `8082` |`smoke-test.sh`; `.env` wird geladen und überschreibt dortige Shellwerte. Jenkins-URL wird daraus intern gebildet, kein `JENKINS_URL`-Override. Die Portal-Prüfungen laufen nur, wenn `current.json` bereits veröffentlicht ist. |nein
 |`GARAGE_DEFAULT_*`, `GARAGE_BROWSER_*` |erzeugte Werte aus `.env` |Smoke-Test gegen laufenden Stack, gleiche Schlüssel wie Compose. |ja
 |`DATENPORTAL_JENKINS_IMAGE` |`datenportal-jenkins:local` |`test-publication.py`; Umgebung, keine automatische `.env`-Ladung. Anderer Default als Basis-Compose. |nein
 |`JENKINS_TEST_URL` |`http://localhost:8080` |`test-jenkins-form.mjs`; nur lokaler Host erlaubt. Bei anderem `JENKINS_PORT` ausdrücklich mitändern. |nein

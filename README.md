@@ -1,8 +1,9 @@
 # datenportal-dev-stack
 
 Lokaler Integrationsstack für Entwicklung, Tests und Demos: Garage-S3,
-öffentliche Downloads, Datenblatt-Editor und Jenkins/GRETL. Die Komponenten
-und ihre Buildlogik bleiben in den jeweiligen Schwester-Repositories.
+öffentliche Downloads, Datenblatt-Editor, Portal und Jenkins/GRETL. Die
+Komponenten und ihre Buildlogik bleiben in den jeweiligen
+Schwester-Repositories.
 
 Für den empfohlenen Entwicklungsweg werden Docker mit Compose v2, Bash,
 OpenSSL, Git, rsync, Maven sowie Java 17 und Java 21 benötigt. Die benötigten Checkouts und Java-Einstellungen stehen unter
@@ -11,13 +12,15 @@ OpenSSL, Git, rsync, Maven sowie Java 17 und Java 21 benötigt. Die benötigten 
 Aus dem Stack-Repository:
 
 ```bash
-./scripts/up.sh --local-editor --local-jenkins
+./scripts/up.sh --local-editor --local-jenkins --local-sodata
 ```
 
 Das baut die lokalen Komponenten, installiert das Plugin im Jenkins-Volume
 und startet die Dienste. Anschliessend folgen **Seeder und administrativer
 Initialaufbau** gemäss [Inbetriebnahme](docs/biblios/inbetriebnahme.adoc).
 Ein gestarteter Container allein ist noch kein publizierbarer Datenbestand.
+Das Portal benötigt eine gültige `current.json`; davor wiederholt der
+Portal-Container seinen Start, bis die erste Publikation vorliegt.
 
 | Dienst | Standardadresse vom Host/Browser |
 |---|---|
@@ -26,8 +29,8 @@ Ein gestarteter Container allein ist noch kein publizierbarer Datenbestand.
 | RDF-Export nach erfolgreicher Publikation | http://localhost:8081/ch.so.daten/opendata.rdf |
 | Gültiger Gesamtstand nach Initialisierung | http://localhost:8081/ch.so.daten/current.json |
 | Editor | http://localhost:8081/metadaten-editor/ |
+| Portal | http://localhost:8082/ |
 | Authentifizierte S3-API | http://localhost:3900 |
-| Portal, separat gemäss Anleitung gestartet | http://localhost:8082/ |
 
 Die vollständige [Entwicklungsdokumentation](docs/biblios/index.adoc)
 führt durch:

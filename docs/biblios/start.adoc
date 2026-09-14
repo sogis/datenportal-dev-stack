@@ -15,7 +15,7 @@ sind relativ; lokale Benutzerpfade gehören nicht in die Konfiguration.
 |`../datenportal-jenkins-gretl-plugin` |Lokalen Plugin-Build. Entfällt bei ausdrücklich gewähltem Maven-HPI oder vorhandenem HPI.
 |`../datenportal-datenblatt-editor` |`--local-editor` und Formular-Browsertest.
 |`../datenportal-pilot-daten` |Deklarierte CSV-/XTF-Fixtures für Liefer- und Integrationstests; nicht automatisch publiziert.
-|`../datenportal-sodata` |Separaten lokalen Portalstart und Manifest-Integrationstest.
+|`../datenportal-sodata` |Lokaler Portal-Containerbuild (`--local-sodata`) und Manifest-Integrationstest.
 |===
 
 Für jeden Start: Docker mit Compose v2 und laufendem Docker-Daemon, Bash,
@@ -30,10 +30,11 @@ link:https://codeberg.org/edigonzales/datenportal-jenkins-gretl-plugin/src/branc
 Mavens JVM muss entsprechend eingerichtet sein (`mvn -version`). Ein explizites
 `PLUGIN_HPI_SOURCE` überspringt die HPI-Erzeugung/-Auflösung, aber nicht den
 Offline-Bundle- und Image-Build. Der Editor wird mit Node 22 im Docker-Build
-gebaut; dafür braucht der Host kein Node. Das Portal benötigt lokal JDK 25
-sowie Node/npm im `PATH` (Vite: `^20.19.0 || >=22.12.0`) für seinen
-Gradle-/Frontend-Build. Zusätzliche Testwerkzeuge stehen in
-xref:entwicklung.adoc[Entwicklung und Tests].
+gebaut; dafür braucht der Host kein Node. Das Portal wird ebenfalls vollständig
+im Docker gebaut (Gradle, npm und WebR; erster Build lädt Abhängigkeiten nach).
+Der Host benötigt für beide Containerwege nur Docker; JDK 25 und Node/npm sind
+weiterhin für einen manuellen Portal-`bootRun` nötig. Zusätzliche Testwerkzeuge
+stehen in xref:entwicklung.adoc[Entwicklung und Tests].
 
 Builds laden Abhängigkeiten und Basisimages. «Offline-Bundle» bedeutet, dass
 die anschliessenden GRETL-Läufe ihre Abhängigkeiten lokal auflösen können;
@@ -43,15 +44,17 @@ es bedeutet nicht, dass der erste Image-Build ohne Netzwerk möglich ist.
 
 [source,bash]
 ----
-./scripts/up.sh --local-editor --local-jenkins
+./scripts/up.sh --local-editor --local-jenkins --local-sodata
 docker compose ps -a
 ----
 
-`up.sh` führt `init.sh` aus, baut Editor und Jenkins aus den lokalen Quellen,
-initialisiert Garage und den öffentlichen Leseschlüssel und startet die Dienste.
-Das aktuelle Datenportal-Plugin wird aus dem Image ins persistente Jenkins-Volume
-kopiert; Jenkins wird neu erzeugt. Jobs und Historien bleiben erhalten.
-Die nächsten Schritte sind xref:inbetriebnahme.adoc[Seeder und Initialaufbau].
+`up.sh` führt `init.sh` aus, baut Editor, Jenkins und Portal aus den lokalen
+Quellen, initialisiert Garage und den öffentlichen Leseschlüssel und startet
+die Dienste. Das aktuelle Datenportal-Plugin wird aus dem Image ins persistente
+Jenkins-Volume kopiert; Jenkins wird neu erzeugt. Jobs und Historien bleiben
+erhalten. Das Portal startet ohne Health-Wait; vor der ersten Veröffentlichung
+wiederholt der Container seinen Start, bis `current.json` existiert. Die
+nächsten Schritte sind xref:inbetriebnahme.adoc[Seeder und Initialaufbau].
 
 `init.sh` erzeugt einmalig `.env` mit Schreib- und Browser-Schlüssel sowie
 `services/garage/garage.toml` mit Garage-Secrets. Beide Dateien sind ignoriert
@@ -73,35 +76,47 @@ Dienste. Deren konfigurierte Healthchecks müssen erfolgreich sein.
 [cols="2,4",options="header"]
 |===
 |Aufruf |Verhalten
-|`./scripts/up.sh` |Editor aus Registry. Vorhandenes konfiguriertes Jenkins-Image wird wiederverwendet, sonst Pull. Nur ein eindeutig fehlender Registry-Tag erlaubt lokalen Jenkins-Fallback.
-|`./scripts/up.sh --local-editor` |Editor neu aus dem Schwester-Repo bauen; Jenkins wie beim Standardaufruf.
+|`./scripts/up.sh` |Editor aus Registry. Jenkins- und Portal-Image werden wiederverwendet, sonst gepullt. Nur ein eindeutig fehlender Registry-Tag erlaubt den lokalen Fallback der jeweiligen Komponente.
+|`./scripts/up.sh --local-editor` |Editor neu aus dem Schwester-Repo bauen; Jenkins und Portal wie beim Standardaufruf.
 |`./scripts/up.sh --local-jenkins` |Jenkins einschliesslich Plugin und Bundle neu bauen, Plugin im Volume ersetzen, Jenkins neu erzeugen.
-|`./scripts/up.sh --local-editor --local-jenkins` |Empfohlener Weg für den aktuellen Entwicklungsstand beider Komponenten.
-|`./scripts/up.sh --registry-only` |Kein lokaler Jenkins-Fallback. Mit `--local-editor` kombinierbar, mit `--local-jenkins` unzulässig.
+|`./scripts/up.sh --local-sodata` |Portal-Image neu aus `../datenportal-sodata` bauen und als Container verwenden.
+|`./scripts/up.sh --local-editor --local-jenkins --local-sodata` |Empfohlener Weg für den aktuellen Entwicklungsstand aller lokalen Komponenten.
+|`./scripts/up.sh --registry-only` |Kein lokaler Jenkins- oder Portal-Fallback. Mit `--local-editor` kombinierbar, mit `--local-jenkins` oder `--local-sodata` unzulässig.
 |`./scripts/up.sh --help` |Optionen ausgeben, nichts starten.
 |===
 
 Ein Registry-Authentisierungs- oder Netzwerkfehler führt zum Abbruch. Beim
-Fallback wird ein vorhandenes `datenportal-jenkins:local` wiederverwendet;
-nur wenn es fehlt, wird gebaut. Ein vorhandenes Image wird nicht automatisch
-auf neue Registry-Inhalte geprüft. Die Standardtags und Buildparameter stehen
-in xref:konfiguration.adoc[Konfiguration]. Ein älteres Registry-Editor-Image
+Fallback wird ein vorhandenes `datenportal-jenkins:local` beziehungsweise
+`datenportal-sodata:local` wiederverwendet; nur wenn es fehlt, wird gebaut.
+Ein vorhandenes Image wird nicht automatisch auf neue Registry-Inhalte geprüft.
+Solange kein Registry-Image für das Portal veröffentlicht ist, baut der
+Standardaufruf den lokalen Stand einmalig. Ein älteres Registry-Editor-Image
 muss die Manifestfunktion nicht enthalten; der lokale Build ist der verlässliche
-Weg, den aktuellen Checkout zu testen.
+Weg, den aktuellen Checkout zu testen. Die Standardtags und Buildparameter
+stehen in xref:konfiguration.adoc[Konfiguration].
+
+Das Portal wird bewusst ohne Health-Wait gestartet: Vor der ersten
+Veröffentlichung fehlt `current.json`, die Anwendung startet dann nicht und der
+Container wiederholt den Start gemäss Restart-Policy, bis die Datei existiert.
+Nach der administrativen Initialpublikation genügt
+`docker compose restart sodata`.
 
 `compose.yaml` enthält keine Build-Definition. `docker compose build` allein
 baut daher keine Komponenten. Der lokale Editor verwendet
 `compose.editor-local.yaml`; Jenkins wird über das Buildskript seines eigenen
-Repositories gebaut und mit `compose.jenkins-local.yaml` ausgewählt.
+Repositories gebaut und mit `compose.jenkins-local.yaml` ausgewählt. Das lokale
+Portal verwendet `compose.sodata-local.yaml` und `./scripts/build-sodata-local.sh`;
+Dockerfile und Buildlogik liegen in `../datenportal-sodata`.
 Bei späteren direkten `up`-/`build`-Aufrufen dieselben Override-Dateien angeben,
 sonst kann wieder das Registry-Image gewählt werden:
 
 [source,bash]
 ----
 docker compose -f compose.yaml -f compose.editor-local.yaml \
-  -f compose.jenkins-local.yaml config --quiet
+  -f compose.jenkins-local.yaml -f compose.sodata-local.yaml config --quiet
 ----
 
 `config --quiet` prüft die aufgelöste Konfiguration ohne Secrets auszugeben.
 `ps`, `logs` und `exec` adressieren die bereits laufenden Dienste. Für ein
-Update mit HPI-Synchronisierung weiterhin `up.sh --local-jenkins` verwenden.
+Update mit HPI-Synchronisierung weiterhin `up.sh --local-jenkins` verwenden;
+für den Portalstand `up.sh --local-sodata`.

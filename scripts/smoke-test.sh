@@ -19,6 +19,7 @@ PUBLIC_PORT="${GARAGE_PUBLIC_PORT:-8081}"
 PUBLIC_URL="http://localhost:${PUBLIC_PORT}/ch.so.daten"
 EDITOR_URL="http://localhost:${PUBLIC_PORT}/metadaten-editor"
 JENKINS_URL="http://localhost:${JENKINS_PORT:-8080}"
+SODATA_URL="http://localhost:${SODATA_PORT:-8082}"
 SMOKE_KEY="_dev-stack-smoke/$$-$(date +%s).txt"
 SMOKE_NAME="${SMOKE_KEY##*/}"
 ROOT_SMOKE_KEY="_dev-stack-smoke-$$-$(date +%s).txt"
@@ -214,6 +215,20 @@ fi
 editor_asset="${editor_asset#./}"
 curl --fail --silent --show-error "${EDITOR_URL}/${editor_asset}" -o /dev/null
 
+echo "Checking Portal (sodata) ..."
+if curl --fail --silent --show-error --max-time 5 "${PUBLIC_URL}/current.json" >/dev/null 2>&1; then
+  echo "Checking Portal health ..."
+  curl --fail --silent --show-error "${SODATA_URL}/actuator/health" -o /dev/null
+
+  echo "Checking Portal start page ..."
+  curl --fail --silent --show-error "${SODATA_URL}/" -o /dev/null
+
+  echo "Checking Portal DuckDB artifact ..."
+  curl --fail --silent --show-error "${SODATA_URL}/catalog/catalog.duckdb" -o /dev/null
+else
+  echo "Skipping Portal (sodata) checks: current.json is not published yet."
+fi
+
 echo "Checking Jenkins login endpoint ..."
 curl --fail --silent --show-error "${JENKINS_URL}/login" -o /dev/null
 
@@ -226,4 +241,4 @@ if ! grep -q '"numExecutors"' <<<"${jenkins_api}"; then
   exit 1
 fi
 
-echo "Garage, S3 browser, Datenblatt-Editor and Jenkins smoke tests passed."
+echo "Garage, S3 browser, Datenblatt-Editor, Portal and Jenkins smoke tests passed."

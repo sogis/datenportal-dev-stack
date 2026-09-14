@@ -1,0 +1,8 @@
+services:
+  sodata:
+    image: datenportal-sodata:local
+    build:
+      context: ${SODATA_REPO_DIR:-../datenportal-sodata}
+      dockerfile: Dockerfile
+      args:
+        IMAGE_VERSION: local

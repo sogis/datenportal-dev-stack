@@ -14,7 +14,7 @@
 |Compose-ENV, Ports, Mounts oder Image |Betroffenen Service mit denselben Compose-Overrides neu erzeugen. `restart` allein reicht nicht.
 |Gemountete JCasC |Jenkins neu starten; danach für geänderte Repository-Konfiguration seeden. Globale Build-Freigaben werden gemäss Plugin-Vertrag aktuell gelesen.
 |`services/caddy/Caddyfile` |Explizit Caddy reloaden; unverändertes `up -d` lädt den Dateiinhalt nicht neu.
-|Portal-Code oder Quellkonfiguration |Gemäss Portal-Anleitung neu bauen/starten. Ein Katalog-Reload ändert keine Startkonfiguration.
+|Portal-Code oder Quellkonfiguration |`./scripts/up.sh --local-sodata` baut das Image aus `../datenportal-sodata` und ersetzt den Container. Ein Katalog-Reload ändert keine Startkonfiguration.
 |===
 
 Reiner Editor-Update bei bereits lokal gebauten Images:
@@ -26,6 +26,19 @@ docker compose -f compose.yaml -f compose.editor-local.yaml \
 docker compose -f compose.yaml -f compose.editor-local.yaml \
   -f compose.jenkins-local.yaml up -d --no-deps datenblatt-editor
 ----
+
+Reiner Portal-Update bei bereits gebautem lokalem Image:
+
+[source,bash]
+----
+./scripts/build-sodata-local.sh
+docker compose -f compose.yaml -f compose.sodata-local.yaml \
+  up -d --no-deps sodata
+----
+
+Das Portal startet nach einem Image-Update nur, wenn eine gültige
+`current.json` erreichbar ist; sonst wiederholt der Container den Start, bis
+die erste Publikation vorliegt.
 
 Jenkins komplett aktualisieren, anschliessend `gretl-datenportal-seed` in Jenkins
 starten und dessen Erfolg kontrollieren:

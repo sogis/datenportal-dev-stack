@@ -23,7 +23,7 @@ Die Organisationsberechtigungen aus dem Themenrepo gelten für beide Formularmod
 |Manifest lesen |`http://localhost:8081/ch.so.daten/current.json` |`http://downloads:8081/ch.so.daten/current.json`
 |Editor |`http://localhost:8081/metadaten-editor/` |`http://datenblatt-editor:8080/` (ohne öffentlichen Prefix)
 |Jenkins |`http://localhost:8080/` |`http://jenkins:8080/`
-|Portal, separat gestartet |`http://localhost:8082/` |Docker Desktop: `http://host.docker.internal:8082/`
+|Portal |`http://localhost:8082/` |`http://sodata:8080/`
 |===
 
 `localhost` im Jenkins-Container bezeichnet Jenkins selbst. Interne Namen wie
@@ -210,43 +210,40 @@ keine Browserdaten löschen; dabei gingen lokale Entwürfe verloren. Der Editor
 lädt ausschliesslich öffentlich per HTTP, erhält keine S3-Schlüssel und schreibt
 Änderungen als lokale Entwürfe beziehungsweise exportierbare XTF.
 
-Das Portal läuft separat auf dem Host. Im Repository `../datenportal-sodata`:
+Das Portal läuft als Compose-Service `sodata` und ist Teil des Stackstarts.
+Sein Image wird von `up.sh` aus der Registry verwendet oder – mit
+`--local-sodata` beziehungsweise als Fallback bei fehlendem Registry-Tag – aus
+`../datenportal-sodata` gebaut. Compose setzt die Manifestadresse intern, die
+öffentliche Downloadbasis auf dem Host-Port und die gebündelte DuckDB-*Fixture*
+(`source-type=classpath`). Ihre Views passen nicht automatisch zu neuen
+Lieferungen. Für fachliche «Erkunden»-Tests ist eine separat erzeugte passende
+DuckDB nötig; der Publikationsjob erzeugt sie noch nicht. Auch bei
+`catalog: null` ist eine gültige DuckDB erforderlich. Eine leere öffentliche
+Sicht ist dann korrekt; der XTF-Artefaktendpunkt liefert 404. Ein ungültiger
+Verweis ist dagegen ein Ladefehler.
+
+Vor der ersten Veröffentlichung fehlt `current.json`. Die Anwendung startet
+dann nicht; der Container wiederholt den Start gemäss Restart-Policy, bis die
+Datei existiert. Nach dem administrativen Initialaufbau das Portal neu starten
+und prüfen:
 
 [source,bash]
 ----
-SPRING_PROFILES_ACTIVE=local ./gradlew bootRun --args='--server.port=8082 --datenportal.catalog.source-type=manifest --datenportal.catalog.http-url=http://localhost:8081/ch.so.daten/current.json --datenportal.catalog.download-url=http://localhost:8081/ch.so.daten --datenportal.catalog.duckdb.source-type=classpath --datenportal.catalog.duckdb.classpath-location=catalog.duckdb'
+docker compose restart sodata
+curl -fS http://localhost:8082/actuator/health
 ----
-
-Das ist der vorhandene lokale Startvertrag, kein neues Portal-Deployment. JDK
-25 und die Buildvoraussetzungen aus dem Portal-README sind erforderlich. Die
-hier bewusst separat gewählte DuckDB ist die gebündelte *Fixture*. Ihre Views
-passen nicht automatisch zu neuen Lieferungen. Für fachliche «Erkunden»-Tests
-ist eine separat erzeugte passende DuckDB nötig; der Publikationsjob erzeugt
-sie noch nicht. Auch bei `catalog: null` ist eine gültige DuckDB erforderlich.
-Eine leere öffentliche Sicht ist dann korrekt; der XTF-Artefaktendpunkt liefert
-404. Ein ungültiger Verweis ist dagegen ein Ladefehler.
 
 Für optionalen Reload in der ignorierten `.env` setzen:
 
-* `DATENPORTAL_PORTAL_RELOAD_URL=http://host.docker.internal:8082/admin/catalog/reload`
 * `DATENPORTAL_PORTAL_RELOAD_TOKEN`: ein lokal erzeugtes Secret, ohne es zu committen.
 
-Die Hostadresse gilt für Docker Desktop. Bei anderen Docker-Installationen
-muss eine aus dem Container erreichbare Hostadresse separat eingerichtet und
-konfiguriert werden; Compose fügt keinen Linux-Host-Gateway-Eintrag hinzu.
-Jenkins nach ENV-Änderung neu erzeugen. Das Portal mit demselben Secret als
-`DATENPORTAL_ADMIN_RELOAD_TOKEN` starten. Beispielsweise in einer Bash-Shell
-vom Stack-Root, vor dem obigen Portal-Aufruf:
-
-[source,bash]
-----
-set -a
-. ./.env
-set +a
-: "${DATENPORTAL_PORTAL_RELOAD_TOKEN:?Reload-Token in .env setzen}"
-export DATENPORTAL_ADMIN_RELOAD_TOKEN="$DATENPORTAL_PORTAL_RELOAD_TOKEN"
-cd ../datenportal-sodata
-----
+Jenkins und Portal lesen denselben Wert (`ORG_GRADLE_PROJECT_portalReloadToken`
+beziehungsweise `DATENPORTAL_ADMIN_RELOAD_TOKEN`). Der Reload-Endpunkt ist im
+Compose-Netz als Default gesetzt
+(`http://sodata:8080/admin/catalog/reload`); `DATENPORTAL_PORTAL_RELOAD_URL`
+nur bei abweichender Konfiguration setzen. Nach ENV-Änderungen Jenkins und
+Portal neu erzeugen (`./scripts/up.sh` oder
+`docker compose up -d jenkins sodata`).
 
 Im Lieferformular «Portal nach Veröffentlichung neu laden» wählen (`RELOAD_PORTAL`, Default aus).
 Die Option hat nur bei Publikation eine Wirkung. Bei einem Reloadfehler bleibt

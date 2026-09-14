@@ -92,7 +92,7 @@ services:
       ORG_GRADLE_PROJECT_s3Publish: ${DATENPORTAL_S3_PUBLISH:-true}
       ORG_GRADLE_PROJECT_publicationManifestUrl: ${DATENPORTAL_PUBLICATION_MANIFEST_URL:-http://downloads:8081/ch.so.daten/current.json}
       ORG_GRADLE_PROJECT_catalogDownloadBase: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten
-      ORG_GRADLE_PROJECT_portalReloadUrl: ${DATENPORTAL_PORTAL_RELOAD_URL:-}
+      ORG_GRADLE_PROJECT_portalReloadUrl: ${DATENPORTAL_PORTAL_RELOAD_URL:-http://sodata:8080/admin/catalog/reload}
       ORG_GRADLE_PROJECT_portalReloadToken: ${DATENPORTAL_PORTAL_RELOAD_TOKEN:-}
       ORG_GRADLE_PROJECT_s3Endpoint: ${DATENPORTAL_S3_ENDPOINT:-http://garage:3900}
       ORG_GRADLE_PROJECT_s3Region: ${DATENPORTAL_S3_REGION:-garage}
@@ -125,6 +125,28 @@ services:
       - "${GARAGE_PUBLIC_PORT:-8081}:8081"
     volumes:
       - ./services/caddy:/etc/caddy:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/ch.so.daten/"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  sodata:
+    image: ${DATENPORTAL_SODATA_IMAGE:-sogis/datenportal-sodata:0.1.0}
+    restart: unless-stopped
+    depends_on:
+      downloads:
+        condition: service_healthy
+    ports:
+      - "${SODATA_PORT:-8082}:8080"
+    environment:
+      DATENPORTAL_ADMIN_RELOAD_TOKEN: ${DATENPORTAL_PORTAL_RELOAD_TOKEN:-}
+      DATENPORTAL_CATALOG_SOURCE_TYPE: manifest
+      DATENPORTAL_CATALOG_HTTP_URL: http://downloads:8081/ch.so.daten/current.json
+      DATENPORTAL_CATALOG_DOWNLOAD_URL: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten
+      DATENPORTAL_CATALOG_DUCKDB_SOURCE_TYPE: classpath
+      DATENPORTAL_CATALOG_DUCKDB_CLASSPATH_LOCATION: catalog.duckdb
 
   garage-init:
     image: amazon/aws-cli:2.36.35

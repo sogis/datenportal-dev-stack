@@ -222,14 +222,12 @@ DuckDB nötig; der Publikationsjob erzeugt sie noch nicht. Auch bei
 Sicht ist dann korrekt; der XTF-Artefaktendpunkt liefert 404. Ein ungültiger
 Verweis ist dagegen ein Ladefehler.
 
-Vor der ersten Veröffentlichung fehlt `current.json`. Die Anwendung startet
-dann nicht; der Container wiederholt den Start gemäss Restart-Policy, bis die
-Datei existiert. Nach dem administrativen Initialaufbau das Portal neu starten
-und prüfen:
+Vor der ersten Veröffentlichung fehlt `current.json`; `up.sh` startet Sodata
+deshalb nicht. Nach dem administrativen Initialaufbau den von `up.sh` ausgegebenen
+Compose-Befehl verwenden und prüfen:
 
 [source,bash]
 ----
-docker compose restart sodata
 curl -fS http://localhost:8082/actuator/health
 ----
 

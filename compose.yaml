@@ -134,7 +134,7 @@ services:
 
   sodata:
     image: ${DATENPORTAL_SODATA_IMAGE:-sogis/datenportal-sodata:0.1.0}
-    restart: unless-stopped
+    restart: on-failure:3
     depends_on:
       downloads:
         condition: service_healthy

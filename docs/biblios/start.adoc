@@ -52,9 +52,10 @@ docker compose ps -a
 Quellen, initialisiert Garage und den öffentlichen Leseschlüssel und startet
 die Dienste. Das aktuelle Datenportal-Plugin wird aus dem Image ins persistente
 Jenkins-Volume kopiert; Jenkins wird neu erzeugt. Jobs und Historien bleiben
-erhalten. Das Portal startet ohne Health-Wait; vor der ersten Veröffentlichung
-wiederholt der Container seinen Start, bis `current.json` existiert. Die
-nächsten Schritte sind xref:inbetriebnahme.adoc[Seeder und Initialaufbau].
+erhalten. Vor der ersten Veröffentlichung prüft `up.sh` die öffentliche
+`current.json`: Bei HTTP 404 bleibt Sodata gestoppt und der nötige Startbefehl
+wird ausgegeben. Die nächsten Schritte sind
+xref:inbetriebnahme.adoc[Seeder und Initialaufbau].
 
 `init.sh` erzeugt einmalig `.env` mit Schreib- und Browser-Schlüssel sowie
 `services/garage/garage.toml` mit Garage-Secrets. Beide Dateien sind ignoriert
@@ -95,11 +96,11 @@ muss die Manifestfunktion nicht enthalten; der lokale Build ist der verlässlich
 Weg, den aktuellen Checkout zu testen. Die Standardtags und Buildparameter
 stehen in xref:konfiguration.adoc[Konfiguration].
 
-Das Portal wird bewusst ohne Health-Wait gestartet: Vor der ersten
-Veröffentlichung fehlt `current.json`, die Anwendung startet dann nicht und der
-Container wiederholt den Start gemäss Restart-Policy, bis die Datei existiert.
-Nach der administrativen Initialpublikation genügt
-`docker compose restart sodata`.
+Das Portal wird nur gestartet, wenn `current.json` öffentlich mit HTTP 200
+erreichbar ist. Danach wartet `up.sh` auf den Container-Healthcheck. Vor der
+Erstpublikation bleibt der Container gestoppt; nach der administrativen
+Initialpublikation wird der von `up.sh` ausgegebene Compose-Befehl verwendet.
+Die lokale Restart-Policy ist auf drei Fehlversuche begrenzt.
 
 `compose.yaml` enthält keine Build-Definition. `docker compose build` allein
 baut daher keine Komponenten. Der lokale Editor verwendet

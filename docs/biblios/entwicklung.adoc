@@ -37,8 +37,9 @@ docker compose -f compose.yaml -f compose.sodata-local.yaml \
 ----
 
 Das Portal startet nach einem Image-Update nur, wenn eine gültige
-`current.json` erreichbar ist; sonst wiederholt der Container den Start, bis
-die erste Publikation vorliegt.
+`current.json` erreichbar ist. Fehlt die Datei, bleibt der Container gestoppt;
+nach der Erstpublikation ist der von `up.sh` ausgegebene Compose-Befehl erneut
+auszuführen.
 
 Jenkins komplett aktualisieren, anschliessend `gretl-datenportal-seed` in Jenkins
 starten und dessen Erfolg kontrollieren:

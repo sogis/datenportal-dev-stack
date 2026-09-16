@@ -19,8 +19,8 @@ Das baut die lokalen Komponenten, installiert das Plugin im Jenkins-Volume
 und startet die Dienste. Anschliessend folgen **Seeder und administrativer
 Initialaufbau** gemäss [Inbetriebnahme](docs/biblios/inbetriebnahme.adoc).
 Ein gestarteter Container allein ist noch kein publizierbarer Datenbestand.
-Das Portal benötigt eine gültige `current.json`; davor wiederholt der
-Portal-Container seinen Start, bis die erste Publikation vorliegt.
+Das Portal benötigt eine gültige `current.json`; `up.sh` startet Sodata bei
+HTTP 404 deshalb noch nicht und gibt den späteren Startbefehl aus.
 
 | Dienst | Standardadresse vom Host/Browser |
 |---|---|

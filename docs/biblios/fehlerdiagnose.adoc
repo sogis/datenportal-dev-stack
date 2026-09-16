@@ -27,7 +27,7 @@ Portalstatus prüfen.
 |RDF-Upload oder Rücklesen fehlgeschlagen |`publication=accepted` kann bereits gelten. `opendata.status` getrennt prüfen: `not-published`, `accepted` nach geklärter verlorener Antwort oder `unknown` bei nicht klärbarem Ausgang. Kein Portal-Reload danach.
 |RDF enthält keine Datensätze |Bei `catalog: null` oder ohne `published`-Einträge beabsichtigt; bei Ausgaben muss auch die Serie freigegeben sein. Der leere Export ersetzt den bisherigen RDF-Bestand.
 |Reload fehlgeschlagen |S3 bleibt angenommen, Portal behält alten Snapshot/Index. URL aus Jenkins erreichbar? Token auf beiden Seiten gleich? Portal-Logs und geschützten Status prüfen.
-|Portal-Container startet wiederholt neu |Vor der ersten Veröffentlichung fehlt `current.json`; das ist der erwartete Zustand. Nach dem administrativen Initialaufbau `docker compose restart sodata` ausführen und `http://localhost:8082/actuator/health` prüfen.
+|Portal-Container startet wiederholt neu |`up.sh` sollte Sodata bei HTTP 404 nicht starten. Prüfe `current.json`, die Manifestreferenzen und die begrenzte Restart-Policy mit `docker compose ps -a` und `docker compose logs sodata`.
 |Portal-Prüfungen im Smoke-Test werden übersprungen |`current.json` fehlt noch; die Portal-Checks laufen erst nach der ersten Publikation.
 |Editor zeigt eine alte Quelle |Gespeicherte Quelladresse im Dialog prüfen; diese hat Vorrang vor dem neuen Builddefault. Remote-Ladefehler werden angezeigt, kein stiller Rückfall auf einen alten Remote-Stand.
 |Erkunden zeigt andere/fehlende Tabellen |Separat konfigurierte `catalog.duckdb` passt nicht zum Katalog. Der Publikationsjob erzeugt oder synchronisiert sie noch nicht.

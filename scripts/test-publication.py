@@ -40,6 +40,7 @@ def service(name,image,*args,env=None,volumes=()):
         cmd+=['--env-file',str(f)]
     for volume in volumes:cmd+=['-v',volume]
     if name=='proxy':cmd+=['-p','127.0.0.1::8000']
+    if name=='portal':cmd+=['-p','127.0.0.1::8080']
     run(*cmd,image,*args);containers.append(full)
 
 def git(*args):return run('git','-C',str(REPO),*args)
@@ -84,6 +85,14 @@ def gradle(name,extra=(),root=False,success=True,write=False,task=None):
         assert report['opendata']['status']=='accepted', report
     if task=='preparePublication' or '-Ps3Publish=false' in extra:
         assert not any(e['method']=='PUT' for e in observed), observed
+        assert report['duckdb']['status']=='sql-prepared', report
+        assert (OUTPUT/'catalog-views.sql').is_file()
+        assert not (OUTPUT/'catalog.duckdb').exists()
+    if report['publication']=='accepted':
+        assert report['duckdb']['status']=='verified', report
+        pointer_put = next(i for i,e in enumerate(observed) if e['method']=='PUT' and e['path'].endswith('/current.json'))
+        assert any(e['method']=='PUT' and e['path'].endswith('.duckdb') and e['contentType']=='application/octet-stream' for e in observed[:pointer_put])
+        assert any(e['method']=='GET' and e['path'].endswith('.duckdb') and e['status']==200 for e in observed[:pointer_put])
     return report
 
 try:
@@ -144,8 +153,31 @@ try:
     assert report['publication']=='accepted' and report['git']=='pushed' and report['reload']=='succeeded', report
     assert report['opendata']['datasetCount']==1 and public_rdf()==(OUTPUT/'opendata.rdf').read_bytes()
     assert git('diff-tree','--no-commit-id','--name-only','-r','HEAD').splitlines()==[str(REL)]
+    if os.environ.get('DATENPORTAL_PLAYGROUND_ONLY')=='1':
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('playground_publication',STACK/'scripts/testing/playground-publication.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        module.verify(globals())
+        raise SystemExit(0)
+    baseline=current()
+    assert baseline['duckdb']=='catalog-'+baseline['releaseId']+'.duckdb'
+    with urllib.request.urlopen(public.rsplit('/',1)[0]+'/'+baseline['duckdb']) as response:
+        assert response.headers.get_content_type()=='application/octet-stream'
+        assert response.read()==(OUTPUT/'catalog.duckdb').read_bytes()
+    # An old reader/publisher baseline remains usable; every new release writes duckdb.
+    control(legacy_release=baseline['releaseId'])
+    report=gradle('upgrade-legacy-manifest',['-PpublicationMode=repository-metadata'])
+    assert report['publication']=='accepted' and current()['duckdb']
+    control()
     baseline=current()
     baseline_rdf=public_rdf()
+    for name, fault in [('missing-parquet','missing_parquet'), ('duckdb-upload-failure','fail_duckdb'), ('duckdb-readback-corrupt','corrupt_duckdb')]:
+        control(**{fault:True})
+        report=gradle(name,['-PpublicationMode=repository-metadata'],success=False)
+        assert current()==baseline and report['publication'] in ('not-published','candidates-uploaded')
+        observed=json.loads((WORK/(name+'-events.json')).read_text())
+        assert not any(e['method']=='PUT' and e['path'].endswith('/current.json') for e in observed)
+    control()
     # Ein formal erlaubter Altkatalog kann issued vermissen. Für diesen Grenzfall
     # wird nur die lokale Transformationsquelle ersetzt. Die Prüfung muss den
     # gesamten Veröffentlichungsablauf noch vor dem ersten PUT/Git-Schritt stoppen.

@@ -215,6 +215,9 @@ fi
 editor_asset="${editor_asset#./}"
 curl --fail --silent --show-error "${EDITOR_URL}/${editor_asset}" -o /dev/null
 
+echo "Checking public downloads from Jenkins ..."
+docker compose exec -T jenkins curl --fail --silent --show-error "${PUBLIC_URL}/${SMOKE_KEY}" -o /dev/null
+
 echo "Checking Portal (sodata) ..."
 if curl --fail --silent --show-error --max-time 5 "${PUBLIC_URL}/current.json" >/dev/null 2>&1; then
   echo "Checking Portal health ..."
@@ -224,7 +227,22 @@ if curl --fail --silent --show-error --max-time 5 "${PUBLIC_URL}/current.json" >
   curl --fail --silent --show-error "${SODATA_URL}/" -o /dev/null
 
   echo "Checking Portal DuckDB artifact ..."
-  curl --fail --silent --show-error "${SODATA_URL}/catalog/catalog.duckdb" -o /dev/null
+  python3 - "${PUBLIC_URL}" "${SODATA_URL}" <<'PYTHON'
+import hashlib, json, sys, urllib.request
+sys.path.insert(0, 'scripts/testing')
+from importlib import import_module
+validate = import_module('check-publication-manifest').validate
+with urllib.request.urlopen(sys.argv[1] + '/current.json') as response:
+    manifest = validate(json.load(response))
+with urllib.request.urlopen(sys.argv[1] + '/' + manifest['duckdb']) as response:
+    published = response.read()
+with urllib.request.urlopen(sys.argv[2] + '/catalog/catalog.duckdb') as response:
+    active = response.read()
+assert published == active, 'Portal DuckDB differs from the published generation; reload required'
+assert active[8:12] == b'DUCK'
+with urllib.request.urlopen(sys.argv[2] + '/catalog/catalog.duckdb?v=' + hashlib.sha256(active).hexdigest()) as response:
+    assert response.read() == active
+PYTHON
 else
   echo "Skipping Portal (sodata) checks: current.json is not published yet."
 fi

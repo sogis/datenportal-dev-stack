@@ -91,7 +91,7 @@ Wechsel des Storage-Backends.
 |Editor-Buildargumente lokal |`VITE_BASE_PATH=./`, `VITE_METADATA_SOURCE_URL=/ch.so.daten/current.json`. Buildzeitwerte, keine Runtime-ENV.
 |Jenkinsimage lokal |`compose.jenkins-local.yaml`: fest `datenportal-jenkins:local`.
 |Portalimage lokal |`compose.sodata-local.yaml`: fest `datenportal-sodata:local`; Buildkontext `../datenportal-sodata` (über `SODATA_REPO_DIR` überschreibbar). Dockerfile und Buildlogik liegen im Portal-Repository.
-|Portal-Laufzeit |Manifest intern über `http://downloads:8081/ch.so.daten/current.json`; öffentliche Downloadbasis über `${GARAGE_PUBLIC_PORT}`; DuckDB als Classpath-Fixture `catalog.duckdb`; Reload-Token aus `DATENPORTAL_PORTAL_RELOAD_TOKEN`.
+|Portal-Laufzeit |Manifest intern über `http://downloads:8081/ch.so.daten/current.json`; öffentliche Downloadbasis über `${GARAGE_PUBLIC_PORT}`; DuckDB über denselben Manifeststand (`source-type=manifest`); Reload-Token aus `DATENPORTAL_PORTAL_RELOAD_TOKEN`.
 |Öffentliche Leseschicht |Caddy prüft Garage-Websitefreigabe, setzt CORS und `Cache-Control: no-store`; rclone verwendet `--dir-cache-time 0s`. Bucket-Zugriff per GET/HEAD, keine anonymen Schreibrechte. Der Compose-Healthcheck ruft `GET /ch.so.daten/` ab und macht den Dienst damit für `depends_on` und `up --wait` prüfbar.
 |===
 
@@ -175,3 +175,8 @@ entsteht relativ zu `DATENPORTAL_PUBLICATION_MANIFEST_URL`; derselbe Bucket,
 dieselben Credentials und `DATENPORTAL_S3_PUBLISH` gelten. Die Freigabe schliesst
 auch den RDF-Upload nach XTF-Annahme ein. Kantonale RDF-Konstanten und die
 fachliche Abbildung liegen im Themenrepo unter `shared/xsl/opendata/`.
+
+Der lokale Dienst `jenkins-downloads` verwendet `${GARAGE_PUBLIC_PORT}` nur
+auf Loopback im Jenkins-Netzwerkraum. Er dient ausschliesslich der Erreichbarkeit
+der öffentlichen Parquet-URLs bei der View-Erzeugung; keine neue Job-Property.
+Port 8080 kollidiert mit Jenkins und wird von `up.sh` zurückgewiesen.

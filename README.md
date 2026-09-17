@@ -6,7 +6,7 @@ Komponenten und ihre Buildlogik bleiben in den jeweiligen
 Schwester-Repositories.
 
 Für den empfohlenen Entwicklungsweg werden Docker mit Compose v2, Bash,
-OpenSSL, Git, rsync, Maven sowie Java 17 und Java 21 benötigt. Die benötigten Checkouts und Java-Einstellungen stehen unter
+OpenSSL, Git, rsync, Python 3, Maven sowie Java 17 und Java 21 benötigt. Die benötigten Checkouts und Java-Einstellungen stehen unter
 [Voraussetzungen und Start](docs/biblios/start.adoc).
 
 Aus dem Stack-Repository:
@@ -20,7 +20,7 @@ und startet die Dienste. Anschliessend folgen **Seeder und administrativer
 Initialaufbau** gemäss [Inbetriebnahme](docs/biblios/inbetriebnahme.adoc).
 Ein gestarteter Container allein ist noch kein publizierbarer Datenbestand.
 Das Portal benötigt eine gültige `current.json`; `up.sh` startet Sodata bei
-HTTP 404 deshalb noch nicht und gibt den späteren Startbefehl aus.
+HTTP 404 oder einem Altmanifest ohne DuckDB deshalb noch nicht und gibt den späteren Startbefehl aus.
 
 | Dienst | Standardadresse vom Host/Browser |
 |---|---|

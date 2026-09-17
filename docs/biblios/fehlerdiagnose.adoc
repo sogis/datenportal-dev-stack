@@ -15,7 +15,7 @@ Portalstatus prüfen.
 |Jenkins zeigt alte Felder oder Pipeline |Aktuelles HPI im Volume installieren, Jenkins neu erzeugen, Seeder erfolgreich ausführen. Ein Image-Build allein reicht nicht.
 |Repository-Änderung fehlt |Im Stack neuen Seed starten. Für Übernahme in Gesamt-XTF danach Repository-Abgleich ausführen. Der nächste Vorschaujob führt keinen alten Vorschaukandidaten weiter.
 |`current.json` fehlt |Vor erster Lieferung administrativ initialisieren. Bei vorher vorhandenem Bestand Ursache untersuchen; kein automatischer Bootstrap.
-|Manifest beschädigt oder referenzierte XTF fehlt |Ladefehler, kein Rückfall auf Git. Gewählte Manifestadresse, Dateinamen und HTTP-Status prüfen.
+|Manifest beschädigt oder referenzierte XTF oder DuckDB fehlt |Ladefehler, kein Rückfall auf Git. Gewählte Manifestadresse, Dateinamen und HTTP-Status prüfen.
 |Katalog leer |`catalog: null` vor erster Datenlieferung oder alle Einträge fachlich zurückgehalten können gültig sein. Das Portal filtert nach Freigabe. Bei Null-Katalog ist sein XTF-Artefaktendpunkt 404 korrekt.
 |XTF-/CSV-Validierung fehlerhaft |Buildprotokolle und ausgewählte Modelle prüfen; erforderliche CSV-Modelle müssen vorhanden sein. IDs/Typwechsel nicht als normale Lieferung behandeln.
 |S3-Upload oder öffentliches Rücklesen fehlerhaft |Interne Endpoint-/Manifestadresse, Bucket, Schlüssel und Websitefreigabe prüfen. Öffentliche URLs müssen zum tatsächlichen Uploadziel passen.
@@ -30,7 +30,7 @@ Portalstatus prüfen.
 |Portal-Container startet wiederholt neu |`up.sh` sollte Sodata bei HTTP 404 nicht starten. Prüfe `current.json`, die Manifestreferenzen und die begrenzte Restart-Policy mit `docker compose ps -a` und `docker compose logs sodata`.
 |Portal-Prüfungen im Smoke-Test werden übersprungen |`current.json` fehlt noch; die Portal-Checks laufen erst nach der ersten Publikation.
 |Editor zeigt eine alte Quelle |Gespeicherte Quelladresse im Dialog prüfen; diese hat Vorrang vor dem neuen Builddefault. Remote-Ladefehler werden angezeigt, kein stiller Rückfall auf einen alten Remote-Stand.
-|Erkunden zeigt andere/fehlende Tabellen |Separat konfigurierte `catalog.duckdb` passt nicht zum Katalog. Der Publikationsjob erzeugt oder synchronisiert sie noch nicht.
+|Erkunden zeigt andere/fehlende Tabellen |Manifestverweis `duckdb`, GRETL-Bericht und Portal-Reload prüfen. Bereits offene Playgrounds neu laden.
 |===
 
 Diagnose ohne Ausgabe der Secret-Konfiguration:

@@ -55,6 +55,8 @@ environment_dataportal_jenkins_image="${DATENPORTAL_JENKINS_IMAGE-}"
 environment_dataportal_jenkins_image_set="${DATENPORTAL_JENKINS_IMAGE+x}"
 environment_dataportal_sodata_image="${DATENPORTAL_SODATA_IMAGE-}"
 environment_dataportal_sodata_image_set="${DATENPORTAL_SODATA_IMAGE+x}"
+environment_garage_public_port="${GARAGE_PUBLIC_PORT-}"
+environment_garage_public_port_set="${GARAGE_PUBLIC_PORT+x}"
 environment_jenkins_port="${JENKINS_PORT-}"
 environment_jenkins_port_set="${JENKINS_PORT+x}"
 environment_sodata_port="${SODATA_PORT-}"
@@ -78,6 +80,9 @@ fi
 if [[ -n "$environment_dataportal_sodata_image_set" ]]; then
   export DATENPORTAL_SODATA_IMAGE="$environment_dataportal_sodata_image"
 fi
+if [[ -n "$environment_garage_public_port_set" ]]; then
+  export GARAGE_PUBLIC_PORT="$environment_garage_public_port"
+fi
 if [[ -n "$environment_jenkins_port_set" ]]; then
   export JENKINS_PORT="$environment_jenkins_port"
 fi
@@ -92,6 +97,11 @@ if [[ -n "$environment_plugin_version_set" ]]; then
 fi
 if [[ -n "$environment_plugin_repository_url_set" ]]; then
   export PLUGIN_REPOSITORY_URL="$environment_plugin_repository_url"
+fi
+
+if [[ "${GARAGE_PUBLIC_PORT:-8081}" == 8080 ]]; then
+  echo "GARAGE_PUBLIC_PORT=8080 kollidiert mit Jenkins im gemeinsamen Proxy-Netzwerkraum." >&2
+  exit 1
 fi
 
 if [[ "$local_editor" == true ]]; then
@@ -283,10 +293,21 @@ else
   docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 datenblatt-editor s3-browser jenkins downloads
 fi
 
+# Jenkins recreation changes its network namespace; always recreate its loopback proxy.
+docker compose "${compose_files[@]}" up -d --no-deps --force-recreate --wait --wait-timeout 120 jenkins-downloads
+
 manifest_status="$(publication_manifest_status)"
 portal_started=false
 case "${manifest_status}" in
   200)
+    if ! curl --fail --silent --show-error "http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten/current.json" |
+        python3 "$SCRIPT_DIR/testing/check-publication-manifest.py"; then
+      stop_existing_sodata
+      echo "Sodata benötigt ein gültiges Manifest mit DuckDB. Nach Update/Seed des Themenrepos einen regulären Publikationslauf ausführen."
+      echo "Keine Neuinitialisierung oder Volume-Löschung erforderlich. Danach:"
+      print_sodata_start_command
+      exit 1
+    fi
     docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 sodata
     portal_started=true
     ;;

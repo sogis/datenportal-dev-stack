@@ -17,8 +17,9 @@ import urllib.error
 PORTAL = Path(__file__).resolve().parents[2] / 'datenportal-sodata'
 WORK = Path(tempfile.mkdtemp(prefix='datenportal-portal-manifest-'))
 manifest = {'schemaVersion': 1, 'releaseId': 'integration',
-            'datasheets': 'datasheets-integration.xtf', 'catalog': None}
+            'datasheets': 'datasheets-integration.xtf', 'catalog': None, 'duckdb': 'catalog-integration.duckdb'}
 reads = 0
+duckdb = (PORTAL / 'spec/fixtures/catalog.duckdb').read_bytes()
 catalog = (PORTAL / 'spec/fixtures/published_catalog_full_62_entries.xtf').read_bytes()
 
 class Source(BaseHTTPRequestHandler):
@@ -27,6 +28,8 @@ class Source(BaseHTTPRequestHandler):
         if self.path == '/current.json':
             reads += 1
             body = json.dumps(manifest).encode()
+        elif self.path == '/catalog-integration.duckdb':
+            body = duckdb
         elif self.path == '/published-catalog-integration.xtf':
             body = catalog
         else:
@@ -45,7 +48,7 @@ with socket.socket() as sock:
     port = sock.getsockname()[1]
 token = secrets.token_hex(24)
 env = dict(os.environ, SPRING_PROFILES_ACTIVE='local', DATENPORTAL_ADMIN_RELOAD_TOKEN=token)
-arguments = [f'--server.port={port}', '--datenportal.catalog.source-type=manifest',
+arguments = ['--datenportal.catalog.duckdb.source-type=manifest', '--datenportal.catalog.duckdb.classpath-location=', f'--server.port={port}', '--datenportal.catalog.source-type=manifest',
              f'--datenportal.catalog.http-url=http://127.0.0.1:{source.server_port}/current.json']
 log = (WORK / 'portal.log').open('w')
 process = subprocess.Popen(['./gradlew', 'bootRun', '--args=' + ' '.join(arguments)], cwd=PORTAL,
@@ -71,17 +74,28 @@ try:
     assert json.loads(request('/admin/catalog/status')[1])['visibleEntries'] == 0
     assert request('/catalog/published-catalog.xtf')[0] == 404
     assert request('/')[0] == 200
+    initial_duckdb = request('/catalog/catalog.duckdb')
     manifest['catalog'] = 'published-catalog-integration.xtf'
+    duckdb = (PORTAL / 'spec/fixtures/explore_fixture_catalog.duckdb').read_bytes()
     assert json.loads(request('/admin/catalog/reload', 'POST')[1])['success'] is True
     assert reads == 2
     assert json.loads(request('/admin/catalog/status')[1])['visibleEntries'] > 0
     accepted = request('/catalog/published-catalog.xtf')
     assert accepted[0] == 200
+    accepted_duckdb = request('/catalog/catalog.duckdb')
+    assert accepted_duckdb[1] == duckdb and accepted_duckdb != initial_duckdb
+    import hashlib
+    assert request('/catalog/catalog.duckdb?v=' + hashlib.sha256(initial_duckdb[1]).hexdigest())[0] == 409
+    duckdb = b'corrupt'
+    assert json.loads(request('/admin/catalog/reload', 'POST')[1])['success'] is False
+    assert reads == 3 and request('/catalog/catalog.duckdb') == accepted_duckdb
+    assert request('/catalog/published-catalog.xtf') == accepted
     manifest = {'schemaVersion': 99}
     assert json.loads(request('/admin/catalog/reload', 'POST')[1])['success'] is False
-    assert reads == 3 and request('/catalog/published-catalog.xtf') == accepted
+    assert reads == 4 and request('/catalog/published-catalog.xtf') == accepted
+    assert request('/catalog/catalog.duckdb') == accepted_duckdb
     assert request('/admin/catalog/reload', 'POST', authorized=False)[0] == 401
-    print('PASS: empty initial view, manifest reload, failed reload retains snapshot, protected endpoint', flush=True)
+    print('PASS: one manifest per load, empty initial view, both artifacts reload, stale hash, corrupt DuckDB and manifest retain snapshot, protected endpoint', flush=True)
 finally:
     os.killpg(process.pid, signal.SIGTERM)
     try: process.wait(timeout=20)

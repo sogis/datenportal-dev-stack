@@ -132,6 +132,26 @@ services:
       retries: 30
       start_period: 5s
 
+  # Only the local Jenkins network needs localhost download URLs forwarded.
+  jenkins-downloads:
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    network_mode: service:jenkins
+    depends_on:
+      jenkins:
+        condition: service_started
+      downloads:
+        condition: service_healthy
+    environment:
+      PUBLIC_PORT: ${GARAGE_PUBLIC_PORT:-8081}
+    volumes:
+      - ./services/jenkins-downloads/Caddyfile:/etc/caddy/Caddyfile:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:$${PUBLIC_PORT}/ch.so.daten/"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
   sodata:
     image: ${DATENPORTAL_SODATA_IMAGE:-sogis/datenportal-sodata:0.1.0}
     restart: on-failure:3
@@ -145,8 +165,7 @@ services:
       DATENPORTAL_CATALOG_SOURCE_TYPE: manifest
       DATENPORTAL_CATALOG_HTTP_URL: http://downloads:8081/ch.so.daten/current.json
       DATENPORTAL_CATALOG_DOWNLOAD_URL: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten
-      DATENPORTAL_CATALOG_DUCKDB_SOURCE_TYPE: classpath
-      DATENPORTAL_CATALOG_DUCKDB_CLASSPATH_LOCATION: catalog.duckdb
+      DATENPORTAL_CATALOG_DUCKDB_SOURCE_TYPE: manifest
 
   garage-init:
     image: amazon/aws-cli:2.36.35

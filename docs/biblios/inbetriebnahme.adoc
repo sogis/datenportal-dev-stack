@@ -214,13 +214,24 @@ Das Portal läuft als Compose-Service `sodata` und ist Teil des Stackstarts.
 Sein Image wird von `up.sh` aus der Registry verwendet oder – mit
 `--local-sodata` beziehungsweise als Fallback bei fehlendem Registry-Tag – aus
 `../datenportal-sodata` gebaut. Compose setzt die Manifestadresse intern, die
-öffentliche Downloadbasis auf dem Host-Port und die gebündelte DuckDB-*Fixture*
-(`source-type=classpath`). Ihre Views passen nicht automatisch zu neuen
-Lieferungen. Für fachliche «Erkunden»-Tests ist eine separat erzeugte passende
-DuckDB nötig; der Publikationsjob erzeugt sie noch nicht. Auch bei
-`catalog: null` ist eine gültige DuckDB erforderlich. Eine leere öffentliche
-Sicht ist dann korrekt; der XTF-Artefaktendpunkt liefert 404. Ein ungültiger
-Verweis ist dagegen ein Ladefehler.
+öffentliche Downloadbasis auf dem Host-Port und DuckDB auf `source-type=manifest`.
+GRETL erzeugt die `opendata`-Views und publiziert die Datei gemeinsam mit den
+XTF. Auch bei `catalog: null` enthält das Manifest eine gültige DuckDB mit leerem
+Schema; der XTF-Artefaktendpunkt liefert dann 404.
+
+Für bestehende Veröffentlichungen ohne `duckdb` zuerst Jenkins-Laufzeit und
+Themenrepo aktualisieren/seeden und einen regulären Publikationslauf ausführen
+(zum Beispiel «Datenblatt aus Repository übernehmen»). Anschliessend das neue
+Sodata starten. Keine Neuinitialisierung, kein Löschen von `current.json` oder
+Volumes. `up.sh` erkennt fehlende/ungültige DuckDB-Verweise und erklärt den
+nötigen Übergang, statt mit einer Fixture zu starten.
+
+Der Infrastruktur-Hilfsdienst `jenkins-downloads` läuft im Netzwerkraum von
+Jenkins und leitet ausschliesslich dessen Loopback-Port `${GARAGE_PUBLIC_PORT}`
+an `downloads:8081` weiter. Damit sind gespeicherte Browser-URLs bereits beim
+`CREATE VIEW` aus GRETL erreichbar. Der Proxy veröffentlicht keine Host-Ports;
+`up.sh` erstellt ihn nach Jenkins-Neuerstellung ebenfalls neu. Port 8080 ist
+wegen Jenkins in diesem Netzwerkraum nicht als `GARAGE_PUBLIC_PORT` zulässig.
 
 Vor der ersten Veröffentlichung fehlt `current.json`; `up.sh` startet Sodata
 deshalb nicht. Nach dem administrativen Initialaufbau den von `up.sh` ausgegebenen

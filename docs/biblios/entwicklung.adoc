@@ -106,3 +106,33 @@ Nach einer vollständigen Integrationsänderung ausserdem Erststart,
 Initialisierung, Lieferung, Repository-Abgleich und Vorschau anhand
 xref:inbetriebnahme.adoc[der Inbetriebnahme] nachvollziehen. Echte Git-Schreibtests
 nur gegen ein separates lokales Bare-Repository ausführen.
+
+=== DuckDB-Publikation bis zum Browser prüfen
+
+Die Tests verwenden die lokalen Working-Trees in `../datenportal-themenrepo`,
+`../datenportal-sodata` und `../datenportal-jenkins-dev`. Vorhandene uncommittete
+Änderungen fliessen ein. Builds, Logs und Datenbanken bleiben in ignorierten
+Buildverzeichnissen beziehungsweise temporären Testverzeichnissen.
+
+[source,bash]
+----
+../datenportal-jenkins-dev/bin/test-image-duckdb.sh datenportal-jenkins:local
+../datenportal-jenkins-dev/bin/test-image-publication.sh datenportal-jenkins:local
+python3 scripts/test-publication.py
+python3 scripts/test-portal-manifest.py
+DATENPORTAL_PLAYGROUND_ONLY=1 python3 scripts/test-publication.py
+----
+
+Der letzte Aufruf benötigt zusätzlich das lokale Image `datenportal-sodata:local`
+und die dokumentierte JDK-25-/Playwright-Umgebung des Portal-Repositories. Er
+publiziert in einem eigenen temporären Garage-Netzwerk zuerst eine Ausgabe,
+öffnet die echte GRETL-DuckDB im Browser und führt eine Parquet-Abfrage aus.
+Nach einer zweiten historischen Ausgabe lädt er das laufende Portal neu und
+prüft beide Views in einer neuen Playground-Seite. Screenshots und Logs liegen
+im ausgegebenen Testverzeichnis. Der Test nutzt sodatas gepinnte Playwright-
+Abhängigkeit und verändert keine bestehenden Stack-Volumes.
+
+`test-publication.py` prüft zusätzlich den Übergang von Altmanifesten, DuckDB-
+Content-Type, Uploadreihenfolge, beschädigtes Rücklesen und fehlende Parquet-Dateien.
+`test-portal-manifest.py` prüft gemeinsamen Reload, alte Hash-URLs und den Erhalt
+beider Artefakte bei beschädigter DuckDB.

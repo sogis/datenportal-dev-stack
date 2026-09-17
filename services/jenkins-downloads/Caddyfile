@@ -1,0 +1,9 @@
+{
+    admin off
+    auto_https off
+}
+
+:{$PUBLIC_PORT} {
+    bind 127.0.0.1 [::1]
+    reverse_proxy downloads:8081
+}

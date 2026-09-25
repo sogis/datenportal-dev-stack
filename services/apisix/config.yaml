@@ -1,0 +1,15 @@
+apisix:
+  node_listen:
+    - ${{APISIX_NODE_LISTEN:=8081}}
+  enable_ipv6: false
+  ssl:
+    enable: false
+deployment:
+  role: data_plane
+  role_data_plane:
+    config_provider: yaml
+nginx_config:
+  worker_processes: 1
+  error_log: /dev/stderr
+  http:
+    access_log: /dev/stdout

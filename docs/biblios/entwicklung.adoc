@@ -13,7 +13,7 @@
 |Editor-Code oder Vite-Buildkonfiguration |`./scripts/up.sh --local-editor --local-jenkins` für beide lokalen aktuellen Komponenten; für reinen Editor-Update die untenstehenden Compose-Aufrufe verwenden.
 |Compose-ENV, Ports, Mounts oder Image |Betroffenen Service mit denselben Compose-Overrides neu erzeugen. `restart` allein reicht nicht.
 |Gemountete JCasC |Jenkins neu starten; danach für geänderte Repository-Konfiguration seeden. Globale Build-Freigaben werden gemäss Plugin-Vertrag aktuell gelesen.
-|`services/caddy/Caddyfile` |Explizit Caddy reloaden; unverändertes `up -d` lädt den Dateiinhalt nicht neu.
+|`services/apisix/apisix.yaml` oder `config.yaml` |APISIX übernimmt Dateiänderungen automatisch. `apisix.yaml` muss mit `#END` enden; `config.yaml`-Änderungen benötigen ein Neuerzeugen des Dienstes.
 |Portal-Code oder Quellkonfiguration |`./scripts/up.sh --local-sodata` baut das Image aus `../datenportal-sodata` und ersetzt den Container. Ein Katalog-Reload ändert keine Startkonfiguration.
 |===
 
@@ -53,12 +53,13 @@ Dabei werden nur das Datenportal-Plugin und sein entpacktes Verzeichnis gezielt
 ersetzt. Eine Volume-Löschung gehört nicht zum Updateablauf. Ein manueller
 Image-Build allein ersetzt kein bereits im Jenkins-Volume installiertes Plugin.
 
-Caddy-Konfiguration übernehmen:
+APISIX-Routen werden dateigesteuert eingelesen und bei Änderungen automatisch
+aktualisiert. Nach einer Änderung an der Laufzeitkonfiguration `config.yaml`
+den Dienst neu erzeugen:
 
 [source,bash]
 ----
-docker compose exec downloads caddy reload \
-  --config /etc/caddy/Caddyfile --adapter caddyfile
+docker compose up -d --no-deps --force-recreate downloads
 ----
 
 == Vorhandene Prüfungen

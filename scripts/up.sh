@@ -100,9 +100,25 @@ if [[ -n "$environment_plugin_repository_url_set" ]]; then
 fi
 
 if [[ "${GARAGE_PUBLIC_PORT:-8081}" == 8080 ]]; then
-  echo "GARAGE_PUBLIC_PORT=8080 kollidiert mit Jenkins im gemeinsamen Proxy-Netzwerkraum." >&2
+  echo "GARAGE_PUBLIC_PORT=8080 kollidiert mit Jenkins im gemeinsamen APISIX-Netzwerkraum." >&2
   exit 1
 fi
+
+port_names=(GARAGE_S3_PORT GARAGE_PUBLIC_PORT JENKINS_PORT SODATA_PORT)
+port_values=(
+  "${GARAGE_S3_PORT:-3900}"
+  "${GARAGE_PUBLIC_PORT:-8081}"
+  "${JENKINS_PORT:-8080}"
+  "${SODATA_PORT:-8082}"
+)
+for ((left = 0; left < ${#port_values[@]}; left++)); do
+  for ((right = left + 1; right < ${#port_values[@]}; right++)); do
+    if [[ "${port_values[left]}" == "${port_values[right]}" ]]; then
+      echo "${port_names[left]} und ${port_names[right]} verwenden beide Hostport ${port_values[left]}." >&2
+      exit 1
+    fi
+  done
+done
 
 if [[ "$local_editor" == true ]]; then
   docker compose "${compose_files[@]}" build datenblatt-editor
@@ -286,15 +302,15 @@ docker compose "${compose_files[@]}" run --rm garage-init
 ensure_public_browser_key
 
 if [[ "$jenkins_local" == true ]]; then
-  docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 datenblatt-editor s3-browser downloads
+  docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 datenblatt-editor s3-browser
   sync_local_jenkins_plugin
-  docker compose "${compose_files[@]}" up -d --force-recreate --wait --wait-timeout 120 jenkins
+  docker compose "${compose_files[@]}" up -d --force-recreate --wait --wait-timeout 120 jenkins downloads
 else
   docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 datenblatt-editor s3-browser jenkins downloads
 fi
 
-# Jenkins recreation changes its network namespace; always recreate its loopback proxy.
-docker compose "${compose_files[@]}" up -d --no-deps --force-recreate --wait --wait-timeout 120 jenkins-downloads
+# APISIX shares Jenkins' network namespace, which changes whenever Jenkins is recreated.
+docker compose "${compose_files[@]}" up -d --no-deps --force-recreate --wait --wait-timeout 120 downloads
 
 manifest_status="$(publication_manifest_status)"
 portal_started=false

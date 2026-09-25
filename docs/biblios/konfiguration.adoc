@@ -54,7 +54,7 @@ Compose-/Startaufrufs gemäss obiger Priorität. Wirksamkeit: Container neu erze
 |`JENKINS_PORT` |`8080` |Jenkins-Hostport und von Compose gesetzte `JENKINS_URL`; interner Port bleibt 8080. |nein
 |`SODATA_PORT` |`8082` |Portal-Hostport. Interner Port bleibt 8080; Jenkins erreicht das Portal als `http://sodata:8080`. |nein
 |`GARAGE_S3_PORT` |`3900` |Garage-S3-Hostport. Ändert nicht `http://garage:3900` im Netz. |nein
-|`GARAGE_PUBLIC_PORT` |`8081` |Downloads-Hostport, Initialisierungsumgebung und Jenkins-`catalogDownloadBase`. Interner Downloads-Port bleibt 8081. Portal-Start und Test-URLs gegebenenfalls separat anpassen. |nein
+|`GARAGE_PUBLIC_PORT` |`8081` |Öffentlicher APISIX-Hostport und Listener-Port im gemeinsamen Jenkins-Netzwerkraum; Initialisierungsumgebung, Manifest- und Downloadadressen. Darf intern nicht 8080 oder mit einem anderen Hostport identisch sein. |nein
 |`THEMEN_REPO_BRANCH` |`main` |Jenkins/JCasC: gespeicherter Branch. Im festen `working-tree`-Modus kein Wechsel des lokalen Branches. Neuer Seed für Jobkontext. |nein
 |`GARAGE_DEFAULT_ACCESS_KEY`, `GARAGE_DEFAULT_SECRET_KEY` |Pflicht; `init.sh` generiert sie |Garage-Schreibkonto, `garage-init`, AWS-Hilfsservice und Jenkins-S3-Properties. Bestehende Schlüssel nicht ohne abgestimmte Garage-Änderung ersetzen. |ja
 |`GARAGE_BROWSER_ACCESS_KEY`, `GARAGE_BROWSER_SECRET_KEY` |Pflicht; `init.sh` generiert sie |`s3-browser`; `up.sh` richtet ausschliesslich Leserechte auf `ch.so.daten` ein. Kein Zugriff für den Editor. |ja
@@ -63,7 +63,7 @@ Compose-/Startaufrufs gemäss obiger Priorität. Wirksamkeit: Container neu erze
 |`DATENPORTAL_S3_BUCKET` |`ch.so.daten` |Nur Jenkins: `ORG_GRADLE_PROJECT_s3BucketName`. |nein
 |`DATENPORTAL_S3_ACL` |`private` |Nur Jenkins: `ORG_GRADLE_PROJECT_s3Acl`. Öffentliche lokale Lesbarkeit wird zusätzlich über die Garage-Website und den Lesedienst bereitgestellt. |nein
 |`DATENPORTAL_S3_PUBLISH` |`true` |Nur Jenkins: `ORG_GRADLE_PROJECT_s3Publish`; `false` erzeugt Vorschauen ohne Upload/Git/Reload. |nein
-|`DATENPORTAL_PUBLICATION_MANIFEST_URL` |`http://downloads:8081/ch.so.daten/current.json` |Nur Jenkins: `ORG_GRADLE_PROJECT_publicationManifestUrl`, Eingangsverweis. Ändert weder Editorquelle noch Portalquelle. |nein
+|`DATENPORTAL_PUBLICATION_MANIFEST_URL` |`http://localhost:<GARAGE_PUBLIC_PORT>/ch.so.daten/current.json` |Nur Jenkins: `ORG_GRADLE_PROJECT_publicationManifestUrl`, Eingangsverweis im gemeinsamen APISIX/Jenkins-Netzwerkraum. Ändert weder Editorquelle noch Portalquelle. |nein
 |`DATENPORTAL_PORTAL_RELOAD_URL` |`http://sodata:8080/admin/catalog/reload` |Nur Jenkins: `ORG_GRADLE_PROJECT_portalReloadUrl`, geschützter Portal-POST-Endpunkt im Compose-Netz. Kein Portalstart dadurch. |nein
 |`DATENPORTAL_PORTAL_RELOAD_TOKEN` |leer; bei angefordertem publizierendem Reload erforderlich |Jenkins `ORG_GRADLE_PROJECT_portalReloadToken` und Portal `DATENPORTAL_ADMIN_RELOAD_TOKEN` aus demselben Wert. |ja
 |===
@@ -86,13 +86,13 @@ Wechsel des Storage-Backends.
 |`ORG_GRADLE_PROJECT_catalogDownloadBase` |`http://localhost:<GARAGE_PUBLIC_PORT>/ch.so.daten`; öffentlich erreichbare Distributionsbasis. Kein eigener `.env`-Override dieses Namens.
 |Git-Freigabe |Lokale JCasC: Default aus; Compose reicht keine Git-Schreibfreigabe durch. Selbst mit Freigabe bleibt `working-tree` ohne Git-Schreiben.
 |Garage-Bucket / Region |`ch.so.daten` / `garage` für Garage, Browser und Hilfsservices.
-|Infrastrukturimages |Garage `dxflrs/garage:v2.3.0`, rclone `rclone/rclone:1.75.1`, Caddy `caddy:2.11.4-alpine`, AWS-Hilfe/Initialisierung `amazon/aws-cli:2.36.35`.
+|Infrastrukturimages |APISIX `apache/apisix:3.14.1-debian` (dateigesteuerter Data Plane ohne etcd/Admin-API/TLS), Garage `dxflrs/garage:v2.3.0`, rclone `rclone/rclone:1.75.1`, AWS-Hilfe/Initialisierung `amazon/aws-cli:2.36.35`.
 |Editorimage |Basis: `sogis/datenportal-datenblatt-editor:0.1.4`; lokales Override: `datenblatt-editor:local`, Buildquelle `../datenportal-datenblatt-editor`.
 |Editor-Buildargumente lokal |`VITE_BASE_PATH=./`, `VITE_METADATA_SOURCE_URL=/ch.so.daten/current.json`. Buildzeitwerte, keine Runtime-ENV.
 |Jenkinsimage lokal |`compose.jenkins-local.yaml`: fest `datenportal-jenkins:local`.
 |Portalimage lokal |`compose.sodata-local.yaml`: fest `datenportal-sodata:local`; Buildkontext `../datenportal-sodata` (über `SODATA_REPO_DIR` überschreibbar). Dockerfile und Buildlogik liegen im Portal-Repository.
-|Portal-Laufzeit |Manifest intern über `http://downloads:8081/ch.so.daten/current.json`; öffentliche Downloadbasis über `${GARAGE_PUBLIC_PORT}`; DuckDB über denselben Manifeststand (`source-type=manifest`); Reload-Token aus `DATENPORTAL_PORTAL_RELOAD_TOKEN`.
-|Öffentliche Leseschicht |Caddy prüft Garage-Websitefreigabe, setzt CORS und `Cache-Control: no-store`; rclone verwendet `--dir-cache-time 0s`. Bucket-Zugriff per GET/HEAD, keine anonymen Schreibrechte. Der Compose-Healthcheck ruft `GET /ch.so.daten/` ab und macht den Dienst damit für `depends_on` und `up --wait` prüfbar.
+|Portal-Laufzeit |Manifest intern über `http://jenkins:${GARAGE_PUBLIC_PORT}/ch.so.daten/current.json`; öffentliche Downloadbasis über `${GARAGE_PUBLIC_PORT}`; DuckDB über denselben Manifeststand (`source-type=manifest`); Reload-Token aus `DATENPORTAL_PORTAL_RELOAD_TOKEN`.
+|Öffentliche Leseschicht |APISIX prüft Garage-Websitefreigabe, setzt CORS und für Bucketantworten `Cache-Control: no-store`; rclone verwendet `--dir-cache-time 0s`. Bucket-Zugriff per GET/HEAD, keine anonymen Schreibrechte. Der Healthcheck prüft `GET /gateway-health`; `up --wait` wartet auf APISIX.
 |===
 
 Diese Werte lassen sich nur durch Änderung der zuständigen Konfiguration oder
@@ -176,7 +176,9 @@ dieselben Credentials und `DATENPORTAL_S3_PUBLISH` gelten. Die Freigabe schliess
 auch den RDF-Upload nach XTF-Annahme ein. Kantonale RDF-Konstanten und die
 fachliche Abbildung liegen im Themenrepo unter `shared/xsl/opendata/`.
 
-Der lokale Dienst `jenkins-downloads` verwendet `${GARAGE_PUBLIC_PORT}` nur
-auf Loopback im Jenkins-Netzwerkraum. Er dient ausschliesslich der Erreichbarkeit
-der öffentlichen Parquet-URLs bei der View-Erzeugung; keine neue Job-Property.
-Port 8080 kollidiert mit Jenkins und wird von `up.sh` zurückgewiesen.
+APISIX läuft im Netzwerkraum von Jenkins und veröffentlicht den öffentlichen
+Hostport über den Jenkins-Service. Damit sind öffentliche `localhost`-URLs bei
+der GRETL-View-Erzeugung erreichbar. Jenkins liest das Manifest über Loopback;
+Sodata verwendet den Servicenamen `jenkins`. `up.sh` erzeugt APISIX nach einer
+Jenkins-Neuerstellung erneut und weist Portkollisionen zurück. Der interne
+Listener `GARAGE_PUBLIC_PORT` darf nicht 8080 sein, weil dort Jenkins lauscht.

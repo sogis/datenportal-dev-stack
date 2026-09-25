@@ -81,6 +81,7 @@ services:
         condition: service_healthy
     ports:
       - "${JENKINS_PORT:-8080}:8080"
+      - "${GARAGE_PUBLIC_PORT:-8081}:${GARAGE_PUBLIC_PORT:-8081}"
     environment:
       JENKINS_RUNTIME_MODE: dev
       CASC_JENKINS_CONFIG: /opt/datenportal/casc/jenkins-local.yaml
@@ -90,7 +91,7 @@ services:
       THEMEN_REPO_PATH: /workspace/themenrepo
       THEMEN_REPO_BRANCH: ${THEMEN_REPO_BRANCH:-main}
       ORG_GRADLE_PROJECT_s3Publish: ${DATENPORTAL_S3_PUBLISH:-true}
-      ORG_GRADLE_PROJECT_publicationManifestUrl: ${DATENPORTAL_PUBLICATION_MANIFEST_URL:-http://downloads:8081/ch.so.daten/current.json}
+      ORG_GRADLE_PROJECT_publicationManifestUrl: ${DATENPORTAL_PUBLICATION_MANIFEST_URL:-http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten/current.json}
       ORG_GRADLE_PROJECT_catalogDownloadBase: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten
       ORG_GRADLE_PROJECT_portalReloadUrl: ${DATENPORTAL_PORTAL_RELOAD_URL:-http://sodata:8080/admin/catalog/reload}
       ORG_GRADLE_PROJECT_portalReloadToken: ${DATENPORTAL_PORTAL_RELOAD_TOKEN:-}
@@ -112,45 +113,30 @@ services:
       start_period: 30s
 
   downloads:
-    image: caddy:2.11.4-alpine
+    image: apache/apisix:3.14.1-debian
     restart: unless-stopped
+    network_mode: service:jenkins
     depends_on:
+      jenkins:
+        condition: service_started
       garage:
         condition: service_healthy
       datenblatt-editor:
         condition: service_healthy
       s3-browser:
         condition: service_healthy
-    ports:
-      - "${GARAGE_PUBLIC_PORT:-8081}:8081"
+    environment:
+      APISIX_STAND_ALONE: "true"
+      APISIX_NODE_LISTEN: ${GARAGE_PUBLIC_PORT:-8081}
     volumes:
-      - ./services/caddy:/etc/caddy:ro
+      - ./services/apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ./services/apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/ch.so.daten/"]
+      test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/$${APISIX_NODE_LISTEN}; printf 'GET /gateway-health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3; IFS= read -r status <&3; [[ \"$$status\" == *' 200 '* ]]"]
       interval: 5s
       timeout: 5s
       retries: 30
       start_period: 5s
-
-  # Only the local Jenkins network needs localhost download URLs forwarded.
-  jenkins-downloads:
-    image: caddy:2.11.4-alpine
-    restart: unless-stopped
-    network_mode: service:jenkins
-    depends_on:
-      jenkins:
-        condition: service_started
-      downloads:
-        condition: service_healthy
-    environment:
-      PUBLIC_PORT: ${GARAGE_PUBLIC_PORT:-8081}
-    volumes:
-      - ./services/jenkins-downloads/Caddyfile:/etc/caddy/Caddyfile:ro
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:$${PUBLIC_PORT}/ch.so.daten/"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
 
   sodata:
     image: ${DATENPORTAL_SODATA_IMAGE:-sogis/datenportal-sodata:0.1.0}
@@ -163,7 +149,7 @@ services:
     environment:
       DATENPORTAL_ADMIN_RELOAD_TOKEN: ${DATENPORTAL_PORTAL_RELOAD_TOKEN:-}
       DATENPORTAL_CATALOG_SOURCE_TYPE: manifest
-      DATENPORTAL_CATALOG_HTTP_URL: http://downloads:8081/ch.so.daten/current.json
+      DATENPORTAL_CATALOG_HTTP_URL: http://jenkins:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten/current.json
       DATENPORTAL_CATALOG_DOWNLOAD_URL: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten
       DATENPORTAL_CATALOG_DUCKDB_SOURCE_TYPE: manifest
 

@@ -147,7 +147,28 @@ if [[ "${put_status}" == 2* ]]; then
 fi
 
 echo "Checking public HEAD ..."
-curl --fail --silent --show-error --head "${PUBLIC_URL}/${SMOKE_KEY}" >/dev/null
+bucket_headers="$(curl --fail --silent --show-error --head "${PUBLIC_URL}/${SMOKE_KEY}")"
+if ! grep -qi '^Cache-Control: no-store' <<<"${bucket_headers}"; then
+  echo "Bucket response did not contain Cache-Control: no-store." >&2
+  exit 1
+fi
+
+echo "Checking bucket root redirect ..."
+bucket_redirect_headers="$(curl --silent --show-error --dump-header - --output /dev/null \
+  --write-out '\n%{http_code}' "${PUBLIC_URL}")"
+if [[ "${bucket_redirect_headers##*$'\n'}" != 308 ]] || \
+  ! grep -Fqi 'Location: /ch.so.daten/' <<<"${bucket_redirect_headers}"; then
+  echo "Bucket root did not redirect to its slash URL: ${bucket_redirect_headers}" >&2
+  exit 1
+fi
+
+echo "Checking unmatched public path ..."
+unmatched_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+  "http://localhost:${PUBLIC_PORT}/not-a-stack-route")"
+if [[ "${unmatched_status}" != 404 ]]; then
+  echo "Unmatched public path returned HTTP ${unmatched_status}, expected 404." >&2
+  exit 1
+fi
 
 echo "Checking CORS preflight ..."
 cors_headers="$(curl --fail --silent --show-error --dump-header - --output /dev/null \
@@ -175,6 +196,13 @@ website_disabled=false
 curl --fail --silent --show-error "${PUBLIC_URL}/" -o /dev/null
 
 echo "Checking Datenblatt-Editor start page ..."
+editor_redirect_headers="$(curl --silent --show-error --dump-header - --output /dev/null \
+  --write-out '\n%{http_code}' "${EDITOR_URL}")"
+if [[ "${editor_redirect_headers##*$'\n'}" != 308 ]] || \
+  ! grep -Fqi 'Location: /metadaten-editor/' <<<"${editor_redirect_headers}"; then
+  echo "Editor root did not redirect to its slash URL: ${editor_redirect_headers}" >&2
+  exit 1
+fi
 editor_html="$(curl --fail --silent --show-error "${EDITOR_URL}/")"
 if ! grep -q '<base href="/metadaten-editor/">' <<<"${editor_html}"; then
   echo "Editor response did not contain the expected public base path." >&2

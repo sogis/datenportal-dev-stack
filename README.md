@@ -1,8 +1,8 @@
 # datenportal-dev-stack
 
 Lokaler Integrationsstack für Entwicklung, Tests und Demos: Garage-S3,
-öffentliche Downloads, Datenblatt-Editor, Portal und Jenkins/GRETL. Die
-Komponenten und ihre Buildlogik bleiben in den jeweiligen
+APISIX für öffentliche Downloads und Editor, Datenblatt-Editor, Portal und
+Jenkins/GRETL. Die Komponenten und ihre Buildlogik bleiben in den jeweiligen
 Schwester-Repositories.
 
 Für den empfohlenen Entwicklungsweg werden Docker mit Compose v2, Bash,

@@ -19,7 +19,7 @@ Portalstatus prüfen.
 |Katalog leer |`catalog: null` vor erster Datenlieferung oder alle Einträge fachlich zurückgehalten können gültig sein. Das Portal filtert nach Freigabe. Bei Null-Katalog ist sein XTF-Artefaktendpunkt 404 korrekt.
 |XTF-/CSV-Validierung fehlerhaft |Buildprotokolle und ausgewählte Modelle prüfen; erforderliche CSV-Modelle müssen vorhanden sein. IDs/Typwechsel nicht als normale Lieferung behandeln.
 |S3-Upload oder öffentliches Rücklesen fehlerhaft |Interne Endpoint-/Manifestadresse, Bucket, Schlüssel und Websitefreigabe prüfen. Öffentliche URLs müssen zum tatsächlichen Uploadziel passen.
-|Neue Objekte im Browser fehlen |Websitefreigabe und Leseschlüssel prüfen. Caddy-Konfiguration explizit reloaden. rclone ist mit Verzeichniscache `0s` konfiguriert.
+|Neue Objekte im Browser fehlen |Websitefreigabe und Leseschlüssel prüfen. APISIX-Routen unter `services/apisix/apisix.yaml` kontrollieren. rclone ist mit Verzeichniscache `0s` konfiguriert.
 |Git-Push abgewiesen |Kein Umschalten des Manifests; Ausgangsrevision/Remote/Branch und konkurrierende Änderungen prüfen. Keine automatische Konfliktlösung.
 |Git erfolgreich, Manifestumschalten fehlgeschlagen |Git kann bereits weiter sein. Bericht und Verweis vergleichen, nicht blind erneut initialisieren.
 |Uploadantwort unklar |Bericht kann `unknown` ausweisen. Verweis zurücklesen und mit Kandidat vergleichen; nicht automatisch als unveröffentlicht behandeln.
@@ -92,9 +92,10 @@ docker compose --profile tools run --rm aws s3 ls s3://ch.so.daten/
 Für manuelle Testuploads ausserhalb des Publikationsvertrags eine eigene Datei
 und einen eigenen Namen verwenden; `current.json` oder feste Lieferdateinamen
 nicht beiläufig überschreiben. Der öffentliche Browser erlaubt nur Lesen.
-Caddy prüft vor jedem Bucketzugriff Garages Websitefreigabe; der eigene
+APISIX prüft vor jedem Bucketzugriff Garages Websitefreigabe; der eigene
 rclone-Schlüssel besitzt keine Schreib- oder Owner-Rechte. Weder Garage-Admin-API
-noch rclone werden direkt am Host veröffentlicht.
+noch rclone werden direkt am Host veröffentlicht. Bei Proxyproblemen zuerst
+`docker compose logs downloads` und den APISIX-Healthcheck prüfen.
 
 == Stoppen und bewusstes Zurücksetzen
 

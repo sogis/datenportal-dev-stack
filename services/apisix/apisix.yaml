@@ -1,0 +1,70 @@
+routes:
+  - id: gateway-health
+    uri: /gateway-health
+    plugins:
+      serverless-pre-function:
+        phase: rewrite
+        functions:
+          - 'return function() ngx.say("ok"); return ngx.exit(200) end'
+
+  - id: editor-root
+    uri: /metadaten-editor
+    plugins:
+      cors:
+        allow_origins: "*"
+        allow_methods: "GET,HEAD,OPTIONS"
+        allow_headers: "*"
+        expose_headers: "ETag,Content-Length,Content-Type"
+      redirect:
+        uri: /metadaten-editor/
+        ret_code: 308
+
+  - id: editor
+    uri: /metadaten-editor/*
+    plugins:
+      cors:
+        allow_origins: "*"
+        allow_methods: "GET,HEAD,OPTIONS"
+        allow_headers: "*"
+        expose_headers: "ETag,Content-Length,Content-Type"
+      proxy-rewrite:
+        regex_uri: ['^/metadaten-editor/(.*)', '/$1']
+        headers:
+          set:
+            X-Forwarded-Prefix: /metadaten-editor
+    upstream:
+      type: roundrobin
+      nodes:
+        "datenblatt-editor:8080": 1
+
+  - id: bucket-root
+    uri: /ch.so.daten
+    plugins:
+      cors:
+        allow_origins: "*"
+        allow_methods: "GET,HEAD,OPTIONS"
+        allow_headers: "*"
+        expose_headers: "ETag,Content-Length,Content-Type"
+      redirect:
+        uri: /ch.so.daten/
+        ret_code: 308
+
+  - id: bucket
+    uri: /ch.so.daten/*
+    plugins:
+      cors:
+        allow_origins: "*"
+        allow_methods: "GET,HEAD,OPTIONS"
+        allow_headers: "*"
+        expose_headers: "ETag,Content-Length,Content-Type"
+      forward-auth:
+        uri: http://garage:3903/check?domain=ch.so.daten
+      response-rewrite:
+        headers:
+          set:
+            Cache-Control: no-store
+    upstream:
+      type: roundrobin
+      nodes:
+        "s3-browser:8080": 1
+#END

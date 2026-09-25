@@ -20,15 +20,16 @@ Die Organisationsberechtigungen aus dem Themenrepo gelten für beide Formularmod
 |===
 |Zweck |Host/Browser |Innerhalb des Compose-Netzes
 |S3-Schreiben |`http://localhost:3900` |`http://garage:3900`
-|Manifest lesen |`http://localhost:8081/ch.so.daten/current.json` |`http://downloads:8081/ch.so.daten/current.json`
+|Manifest lesen |`http://localhost:8081/ch.so.daten/current.json` |Jenkins: `http://localhost:<GARAGE_PUBLIC_PORT>/ch.so.daten/current.json`; Sodata: `http://jenkins:<GARAGE_PUBLIC_PORT>/ch.so.daten/current.json`
 |Editor |`http://localhost:8081/metadaten-editor/` |`http://datenblatt-editor:8080/` (ohne öffentlichen Prefix)
 |Jenkins |`http://localhost:8080/` |`http://jenkins:8080/`
 |Portal |`http://localhost:8082/` |`http://sodata:8080/`
 |===
 
-`localhost` im Jenkins-Container bezeichnet Jenkins selbst. Interne Namen wie
-`downloads` sind umgekehrt im Browser normalerweise nicht auflösbar. Deshalb
-sind Manifest-Leseadresse und öffentliche Downloadbasis getrennt konfiguriert.
+APISIX teilt den Netzwerkraum von Jenkins: dort bezeichnet `localhost` denselben
+öffentlichen Listener, den der Browser am Host erreicht. Sodata nutzt dafür den
+Jenkins-Servicenamen. Manifest-Leseadresse und öffentliche Downloadbasis bleiben
+getrennt konfiguriert.
 
 == Ersten Gesamtstand administrativ erzeugen
 
@@ -226,12 +227,12 @@ Sodata starten. Keine Neuinitialisierung, kein Löschen von `current.json` oder
 Volumes. `up.sh` erkennt fehlende/ungültige DuckDB-Verweise und erklärt den
 nötigen Übergang, statt mit einer Fixture zu starten.
 
-Der Infrastruktur-Hilfsdienst `jenkins-downloads` läuft im Netzwerkraum von
-Jenkins und leitet ausschliesslich dessen Loopback-Port `${GARAGE_PUBLIC_PORT}`
-an `downloads:8081` weiter. Damit sind gespeicherte Browser-URLs bereits beim
-`CREATE VIEW` aus GRETL erreichbar. Der Proxy veröffentlicht keine Host-Ports;
-`up.sh` erstellt ihn nach Jenkins-Neuerstellung ebenfalls neu. Port 8080 ist
-wegen Jenkins in diesem Netzwerkraum nicht als `GARAGE_PUBLIC_PORT` zulässig.
+APISIX läuft im Netzwerkraum von Jenkins und bedient dort dieselbe öffentliche
+Adresse wie am Host. Damit sind gespeicherte Browser-URLs bereits beim
+`CREATE VIEW` aus GRETL erreichbar. Der Hostport wird am Jenkins-Service
+veröffentlicht; `up.sh` erzeugt APISIX nach einer Jenkins-Neuerstellung erneut.
+Port 8080 ist wegen Jenkins in diesem Netzwerkraum nicht als
+`GARAGE_PUBLIC_PORT` zulässig.
 
 Vor der ersten Veröffentlichung fehlt `current.json`; `up.sh` startet Sodata
 deshalb nicht. Nach dem administrativen Initialaufbau den von `up.sh` ausgegebenen

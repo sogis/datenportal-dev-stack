@@ -40,9 +40,9 @@ Diagnose ohne Ausgabe der Secret-Konfiguration:
 docker compose ps -a
 docker compose logs --tail=100 garage s3-browser downloads
 docker compose logs --tail=100 jenkins datenblatt-editor sodata
-curl -fS http://localhost:8080/login -o /dev/null
+curl -fS http://localhost:8081/jenkins/login -o /dev/null
 curl -fS http://localhost:8081/ch.so.daten/current.json
-curl -fS http://localhost:8082/actuator/health
+docker compose exec -T jenkins curl -fS http://sodata:8080/actuator/health
 ----
 
 Logs vor dem Weitergeben auf Zugangsdaten prüfen. Keine vollständige `.env`,
@@ -127,18 +127,23 @@ Technische Schnittstellen bleiben bei ihren Komponenten:
 * link:https://codeberg.org/edigonzales/datenportal-sodata/src/branch/main/docs/configuration.md[Portal: Quellen, DuckDB und Reload] sowie link:https://codeberg.org/edigonzales/datenportal-sodata/src/branch/main/docs/container-deployment.md[Container-Deployment]
 * link:https://codeberg.org/edigonzales/datenportal-datenblatt-editor/src/branch/main/docs/operations.md[Editor: Quellen, Deployment und Offline-Verhalten]
 
-Das vorgesehene Repository `datenportal-dokumentation-betrieb` ist noch nicht
-Teil dieser Umsetzung. Dort sollen produktive Installationsreihenfolge,
-Infrastruktur und Zugänge, Erstinitialisierung/Migration, Abnahme, Updates,
-Überwachung sowie Backup und Wiederherstellung beschrieben werden. Es soll
-auf die technischen Referenzen verweisen, statt Parameter erneut zu definieren.
-Die Dokumentationswebsite wird durch diese Änderung nicht neu konfiguriert.
+Die produktive Zielkonfiguration, APISIX-Inbetriebnahme und Betriebsabläufe
+stehen in der
+link:https://codeberg.org/edigonzales/datenportal-dokumentation-betrieb/src/branch/main/docs/biblios/master.adoc[Betriebsdokumentation].
 
-Noch offen sind insbesondere die Erzeugung und Synchronisierung von
-`catalog.duckdb`, der produktive opendata.swiss-Harvester-Anschluss, automatische Wiederaufnahme, ein vollständiges
+Noch offen sind insbesondere der produktive opendata.swiss-Harvester-Anschluss, automatische Wiederaufnahme, ein vollständiges
 Recovery-Verfahren und Bereinigung alter XTF-Versionen. Das Portal wird
 inzwischen als Container in diesen Stack integriert; ein
 Kubernetes-Deploymentvertrag und ein Publish-Workflow für seine Images
 bestehen weiterhin nicht.
 Einzel-XTF-Verarbeitung und parallele Standardlieferungen sind keine vorhandenen
 Funktionen; der gesamte Standardablauf bleibt durch den gemeinsamen Lock serialisiert.
+
+
+Bei öffentlichen 403 auf `/admin/catalog/*` oder `/actuator/*` arbeitet die
+APISIX-Sperre wie vorgesehen. Probes und Reload intern ausführen. Bei 502/504
+zuerst Backend-Erreichbarkeit und DNS prüfen; `/gateway-health` bestätigt nur
+den Gateway. Vor Erstpublikation ist Sodata noch nicht gestartet. Login- oder
+Assetfehler unter `/jenkins/` erfordern einen Abgleich von `JENKINS_OPTS`,
+`JENKINS_URL` und unverändertem Prefix. Bei 413 Requestgrösse und Gateway-Limit
+prüfen; vor Wiederholung eines Uploads zuerst die Jenkins-Buildhistorie ansehen.

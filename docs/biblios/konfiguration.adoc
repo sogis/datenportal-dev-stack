@@ -17,7 +17,7 @@ link:https://codeberg.org/edigonzales/datenportal-themenrepo/src/branch/main/doc
   werden durch gleichnamige `.env`-Einträge nicht verändert.
 * `up.sh`: lädt `.env` als Shellcode mit Export. Es stellt danach nur die zuvor
   gesetzten Shellwerte von `DATENPORTAL_JENKINS_IMAGE`, `DATENPORTAL_SODATA_IMAGE`,
-  `JENKINS_PORT`, `SODATA_PORT`, `PLUGIN_SOURCE`, `PLUGIN_VERSION` und
+  `GARAGE_PUBLIC_PORT`, `PLUGIN_SOURCE`, `PLUGIN_VERSION` und
   `PLUGIN_REPOSITORY_URL` wieder her.
   Für andere Variablen überschreibt eine Zuweisung in `.env` den Shellwert;
   fehlt sie dort, bleibt der geerbte Wert erhalten. Deshalb lokale Overrides
@@ -26,8 +26,8 @@ link:https://codeberg.org/edigonzales/datenportal-themenrepo/src/branch/main/doc
 * `build-jenkins-local.sh` und `build-sodata-local.sh` lesen selbst keine
   `.env`. Sie verwenden ihre Prozessumgebung und die unten genannten Defaults.
   Über `up.sh` erhalten sie dessen bereits aufgelöste Umgebung.
-* `smoke-test.sh` lädt `.env` ohne die Ausnahmen von `up.sh`. Die drei
-  weiteren Stacktests laden `.env` nicht automatisch.
+* `smoke-test.sh` lädt `.env` ohne die Ausnahmen von `up.sh`. Die weiteren
+  Stacktests laden `.env` nicht automatisch.
 * Gradle: explizite `-Pname=wert` haben Vorrang vor der gleichnamigen
   `ORG_GRADLE_PROJECT_name`-Umgebungsvariable. Zusätzliche eigene
   `gradle.properties`-/System-Properties sind ausserhalb des unveränderten
@@ -51,8 +51,6 @@ Compose-/Startaufrufs gemäss obiger Priorität. Wirksamkeit: Container neu erze
 |Parameter |Default / Pflicht |Verbraucher und Wirkung |Secret
 |`DATENPORTAL_JENKINS_IMAGE` |`sogis/datenportal-jenkins:0.1.0` |`up.sh`, Basis-Compose: Jenkins-Image. Lokales Override setzt stattdessen fest `datenportal-jenkins:local`. |nein
 |`DATENPORTAL_SODATA_IMAGE` |`sogis/datenportal-sodata:0.1.0` |`up.sh`, Basis-Compose: Portal-Image. Lokales Override setzt stattdessen fest `datenportal-sodata:local`. |nein
-|`JENKINS_PORT` |`8080` |Jenkins-Hostport und von Compose gesetzte `JENKINS_URL`; interner Port bleibt 8080. |nein
-|`SODATA_PORT` |`8082` |Portal-Hostport. Interner Port bleibt 8080; Jenkins erreicht das Portal als `http://sodata:8080`. |nein
 |`GARAGE_S3_PORT` |`3900` |Garage-S3-Hostport. Ändert nicht `http://garage:3900` im Netz. |nein
 |`GARAGE_PUBLIC_PORT` |`8081` |Öffentlicher APISIX-Hostport und Listener-Port im gemeinsamen Jenkins-Netzwerkraum; Initialisierungsumgebung, Manifest- und Downloadadressen. Darf intern nicht 8080 oder mit einem anderen Hostport identisch sein. |nein
 |`THEMEN_REPO_BRANCH` |`main` |Jenkins/JCasC: gespeicherter Branch. Im festen `working-tree`-Modus kein Wechsel des lokalen Branches. Neuer Seed für Jobkontext. |nein
@@ -154,12 +152,12 @@ Tests und Nebenwirkungen stehen unter xref:entwicklung.adoc[Entwicklung und Test
 [cols="2,3,3,1",options="header"]
 |===
 |Parameter |Default |Verbraucher / Priorität |Secret
-|`GARAGE_PUBLIC_PORT`, `JENKINS_PORT`, `SODATA_PORT` |`8081`, `8080`, `8082` |`smoke-test.sh`; `.env` wird geladen und überschreibt dortige Shellwerte. Jenkins-URL wird daraus intern gebildet, kein `JENKINS_URL`-Override. Die Portal-Prüfungen laufen nur, wenn `current.json` bereits veröffentlicht ist. |nein
+|`GARAGE_PUBLIC_PORT` |`8081` |`smoke-test.sh`; `.env` wird geladen und überschreibt dortige Shellwerte. Jenkins-URL wird daraus intern gebildet, kein `JENKINS_URL`-Override. Die Portal-Prüfungen laufen nur, wenn `current.json` bereits veröffentlicht ist. |nein
 |`GARAGE_DEFAULT_*`, `GARAGE_BROWSER_*` |erzeugte Werte aus `.env` |Smoke-Test gegen laufenden Stack, gleiche Schlüssel wie Compose. |ja
 |`DATENPORTAL_JENKINS_IMAGE` |`datenportal-jenkins:local` |`test-publication.py`; Umgebung, keine automatische `.env`-Ladung. Anderer Default als Basis-Compose. |nein
-|`JENKINS_TEST_URL` |`http://localhost:8080` |`test-jenkins-form.mjs`; nur lokaler Host erlaubt. Bei anderem `JENKINS_PORT` ausdrücklich mitändern. |nein
-|`JENKINS_TEST_USER` |`admin` |Formulartest; Benutzer für lokalen Jenkins. |nein
-|`JENKINS_TEST_PASSWORD` |`admin` |Formulartest; Passwort aus externer Umgebung. |ja
+|`JENKINS_TEST_URL` |`http://localhost:8081/jenkins` |`test-jenkins-form.mjs` und `test-gateway-delivery.mjs`; nur lokaler Host erlaubt. Bei anderem `GARAGE_PUBLIC_PORT` ausdrücklich mitändern. |nein
+|`JENKINS_TEST_USER` |`admin` |Formular-/Lieferungstest; Benutzer für lokalen Jenkins. |nein
+|`JENKINS_TEST_PASSWORD` |`admin` |Formular-/Lieferungstest; Passwort aus externer Umgebung. |ja
 |===
 
 `test-portal-manifest.py` verwendet eine eigene temporäre Quelle und einen
@@ -182,3 +180,50 @@ der GRETL-View-Erzeugung erreichbar. Jenkins liest das Manifest über Loopback;
 Sodata verwendet den Servicenamen `jenkins`. `up.sh` erzeugt APISIX nach einer
 Jenkins-Neuerstellung erneut und weist Portkollisionen zurück. Der interne
 Listener `GARAGE_PUBLIC_PORT` darf nicht 8080 sein, weil dort Jenkins lauscht.
+
+
+== Öffentliche Anwendungspfade
+
+APISIX leitet `/` an Sodata und `/jenkins/*` unverändert an Jenkins weiter.
+Jenkins startet mit `JENKINS_OPTS=--prefix=/jenkins`;
+`JENKINS_URL=http://localhost:<GARAGE_PUBLIC_PORT>/jenkins/` ist fest daraus
+abgeleitet. `/anlieferung` führt mit 302 zum Pluginformular unter
+`/jenkins/gretl-datenportal/`. `/datenblatt-editor/*` verliert beim Proxying den
+Prefix; der Header `X-Forwarded-Prefix` steuert die HTML-Basis des Editors.
+`/metadaten-editor` samt Unterpfaden bleibt als 308-Weiterleitung erhalten.
+
+Die hoch priorisierte Sperrroute liefert für `/admin`, `/actuator`,
+`/apisix/admin` und deren Unterpfade HTTP 403 ohne Upstream, unabhängig von
+Methode oder Token. Die Portal-Auffangroute hat Priorität -100. CORS ist nur
+für öffentliche Dateien aktiviert; Range-Zugriffe und exponierte Range-Header
+ermöglichen auch Zugriffe von einer anderen Origin.
+
+Jenkins und Sodata veröffentlichen keine direkten Hostports mehr.
+`JENKINS_PORT` und `SODATA_PORT` werden nicht mehr verwendet; alte Einträge in
+`.env` können entfernt werden. Diagnose erfolgt per `docker compose exec`
+oder über APISIX. Der S3-API-Port bleibt für authentisierte Entwicklungswerkzeuge.
+
+`config.yaml` begrenzt Requests lokal auf 256 MiB einschliesslich Multipart-Hülle;
+die Jenkins-Route verwendet Connect-/Send-/Read-Timeouts von 10/300/300 Sekunden.
+Diese Zeitlimits begrenzen nicht die Laufzeit des asynchron gestarteten Jobs.
+Die Produktionswerte sind mit Liefergrössen, Router und temporärem Speicher
+abzustimmen. TLS und Router-Vertrauen werden nur in der Produktionsreferenz
+beschrieben; lokal empfängt APISIX direkt HTTP.
+
+== Dokumentation
+
+* `DATENPORTAL_DOCS_IMAGE`: Standard `sogis/datenportal-dokumentation:latest`;
+  alternativ ein anderer Tag, Digest oder GHCR-Image.
+* `DOCS_REPO_DIR`: Standard `../datenportal-dokumentation` (relativ zum Stack).
+* `THOTH_REPO_DIR`: Standard Schwesterverzeichnis `thoth` neben dem
+  Dokumentationsrepository; explizite relative Pfade gelten ab dem Stack.
+* `THOTH_JAR`: Optionales Biblios-All-JAR statt lokalem Gradle-Build.
+* `PYTHON`: Python mit PyYAML; ohne Vorgabe bevorzugt der HTML-Build die
+  `.venv` des Dokumentationsrepositories, danach `python3`.
+* `JAVA_HOME`: Java-25-Installation für Thoth und Gradle.
+
+Für diese Werte haben bei `up.sh` Shell-Variablen Vorrang vor `.env`.
+Das eigenständige Buildskript übernimmt Buildparameter aus der Umgebung;
+bei direkten Compose-Aufrufen `DOCS_REPO_DIR` ebenfalls setzen.
+Die Dokumentation verwendet intern Port 8080 ohne zusätzlichen Hostport.
+APISIX liefert sie unter `/dokumentation/` über `GARAGE_PUBLIC_PORT` aus.

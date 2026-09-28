@@ -9,6 +9,7 @@ compose_files=(-f compose.yaml)
 local_editor=false
 local_jenkins=false
 local_sodata=false
+local_docs=false
 registry_only=false
 
 while [[ "$#" -gt 0 ]]; do
@@ -23,28 +24,32 @@ while [[ "$#" -gt 0 ]]; do
     --local-sodata)
       local_sodata=true
       ;;
+    --local-docs)
+      local_docs=true
+      ;;
     --registry-only)
       registry_only=true
       ;;
     --help|-h)
-      echo "Usage: ./scripts/up.sh [--local-editor] [--local-jenkins] [--local-sodata] [--registry-only]"
+      echo "Usage: ./scripts/up.sh [--local-editor] [--local-jenkins] [--local-sodata] [--local-docs] [--registry-only]"
       echo "  --local-editor   build the editor from ../datenportal-datenblatt-editor"
       echo "  --local-jenkins  build datenportal-jenkins from ../datenportal-jenkins-dev"
       echo "  --local-sodata   build datenportal-sodata from ../datenportal-sodata"
+      echo "  --local-docs     build documentation from local working trees, then its image"
       echo "  --registry-only  never fall back to a local Jenkins or Sodata build"
       exit 0
       ;;
     *)
       echo "Unknown option: $1" >&2
-      echo "Usage: ./scripts/up.sh [--local-editor] [--local-jenkins] [--local-sodata] [--registry-only]" >&2
+      echo "Usage: ./scripts/up.sh [--local-editor] [--local-jenkins] [--local-sodata] [--local-docs] [--registry-only]" >&2
       exit 2
       ;;
   esac
   shift
 done
 
-if [[ "$registry_only" == true && ("$local_jenkins" == true || "$local_sodata" == true) ]]; then
-  echo "--registry-only cannot be combined with --local-jenkins or --local-sodata." >&2
+if [[ "$registry_only" == true && ("$local_jenkins" == true || "$local_sodata" == true || "$local_docs" == true) ]]; then
+  echo "--registry-only cannot be combined with --local-jenkins, --local-sodata or --local-docs." >&2
   exit 2
 fi
 
@@ -57,10 +62,6 @@ environment_dataportal_sodata_image="${DATENPORTAL_SODATA_IMAGE-}"
 environment_dataportal_sodata_image_set="${DATENPORTAL_SODATA_IMAGE+x}"
 environment_garage_public_port="${GARAGE_PUBLIC_PORT-}"
 environment_garage_public_port_set="${GARAGE_PUBLIC_PORT+x}"
-environment_jenkins_port="${JENKINS_PORT-}"
-environment_jenkins_port_set="${JENKINS_PORT+x}"
-environment_sodata_port="${SODATA_PORT-}"
-environment_sodata_port_set="${SODATA_PORT+x}"
 environment_plugin_source="${PLUGIN_SOURCE-}"
 environment_plugin_source_set="${PLUGIN_SOURCE+x}"
 environment_plugin_version="${PLUGIN_VERSION-}"
@@ -68,11 +69,25 @@ environment_plugin_version_set="${PLUGIN_VERSION+x}"
 environment_plugin_repository_url="${PLUGIN_REPOSITORY_URL-}"
 environment_plugin_repository_url_set="${PLUGIN_REPOSITORY_URL+x}"
 
+# Preserve docs settings from the caller across init.sh and .env loading.
+docs_environment_names=(DATENPORTAL_DOCS_IMAGE DOCS_REPO_DIR THOTH_REPO_DIR THOTH_JAR PYTHON JAVA_HOME)
+docs_environment_set=()
+docs_environment_values=()
+for name in "${docs_environment_names[@]}"; do
+  docs_environment_set+=("${!name+x}")
+  docs_environment_values+=("${!name-}")
+done
+
 ./scripts/init.sh
 set -a
 # shellcheck disable=SC1091
 source .env
 set +a
+for ((i = 0; i < ${#docs_environment_names[@]}; i++)); do
+  if [[ -n "${docs_environment_set[i]}" ]]; then
+    export "${docs_environment_names[i]}=${docs_environment_values[i]}"
+  fi
+done
 
 if [[ -n "$environment_dataportal_jenkins_image_set" ]]; then
   export DATENPORTAL_JENKINS_IMAGE="$environment_dataportal_jenkins_image"
@@ -82,12 +97,6 @@ if [[ -n "$environment_dataportal_sodata_image_set" ]]; then
 fi
 if [[ -n "$environment_garage_public_port_set" ]]; then
   export GARAGE_PUBLIC_PORT="$environment_garage_public_port"
-fi
-if [[ -n "$environment_jenkins_port_set" ]]; then
-  export JENKINS_PORT="$environment_jenkins_port"
-fi
-if [[ -n "$environment_sodata_port_set" ]]; then
-  export SODATA_PORT="$environment_sodata_port"
 fi
 if [[ -n "$environment_plugin_source_set" ]]; then
   export PLUGIN_SOURCE="$environment_plugin_source"
@@ -104,12 +113,10 @@ if [[ "${GARAGE_PUBLIC_PORT:-8081}" == 8080 ]]; then
   exit 1
 fi
 
-port_names=(GARAGE_S3_PORT GARAGE_PUBLIC_PORT JENKINS_PORT SODATA_PORT)
+port_names=(GARAGE_S3_PORT GARAGE_PUBLIC_PORT)
 port_values=(
   "${GARAGE_S3_PORT:-3900}"
   "${GARAGE_PUBLIC_PORT:-8081}"
-  "${JENKINS_PORT:-8080}"
-  "${SODATA_PORT:-8082}"
 )
 for ((left = 0; left < ${#port_values[@]}; left++)); do
   for ((right = left + 1; right < ${#port_values[@]}; right++)); do
@@ -119,6 +126,19 @@ for ((left = 0; left < ${#port_values[@]}; left++)); do
     fi
   done
 done
+
+if [[ "$local_docs" == true ]]; then
+  ./scripts/build-docs-local.sh
+  compose_files+=(-f compose.docs-local.yaml)
+else
+  docs_image="${DATENPORTAL_DOCS_IMAGE:-sogis/datenportal-dokumentation:latest}"
+  if ! docker image inspect "$docs_image" >/dev/null 2>&1; then
+    if ! docker pull "$docs_image"; then
+      echo "Dokumentationsimage nicht verfügbar: $docs_image. Für einen lokalen Build --local-docs verwenden." >&2
+      exit 1
+    fi
+  fi
+fi
 
 if [[ "$local_editor" == true ]]; then
   docker compose "${compose_files[@]}" build datenblatt-editor
@@ -302,11 +322,11 @@ docker compose "${compose_files[@]}" run --rm garage-init
 ensure_public_browser_key
 
 if [[ "$jenkins_local" == true ]]; then
-  docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 datenblatt-editor s3-browser
+  docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 dokumentation datenblatt-editor s3-browser
   sync_local_jenkins_plugin
   docker compose "${compose_files[@]}" up -d --force-recreate --wait --wait-timeout 120 jenkins downloads
 else
-  docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 datenblatt-editor s3-browser jenkins downloads
+  docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 dokumentation datenblatt-editor s3-browser jenkins downloads
 fi
 
 # APISIX shares Jenkins' network namespace, which changes whenever Jenkins is recreated.
@@ -343,10 +363,11 @@ echo
 echo "Garage-S3 is ready."
 echo "S3 API:           http://localhost:${GARAGE_S3_PORT:-3900}"
 echo "Public S3 browser: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten/"
-echo "Datenblatt-Editor: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/metadaten-editor/"
-echo "Jenkins:          http://localhost:${JENKINS_PORT:-8080}/gretl-datenportal/"
+echo "Dokumentation:    http://localhost:${GARAGE_PUBLIC_PORT:-8081}/dokumentation/"
+echo "Datenblatt-Editor: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/datenblatt-editor/"
+echo "Jenkins:          http://localhost:${GARAGE_PUBLIC_PORT:-8081}/anlieferung"
 if [[ "${portal_started}" == true ]]; then
-  echo "Portal (sodata):  http://localhost:${SODATA_PORT:-8082}/"
+  echo "Portal (sodata):  http://localhost:${GARAGE_PUBLIC_PORT:-8081}/"
 else
   echo "Portal (sodata):  wartet auf die Erstpublikation"
 fi

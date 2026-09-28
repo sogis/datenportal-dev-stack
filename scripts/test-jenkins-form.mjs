@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 const require = createRequire(new URL('../../datenportal-datenblatt-editor/package.json', import.meta.url));
 const { chromium } = require('@playwright/test');
-const base = process.env.JENKINS_TEST_URL || 'http://localhost:8080';
+const base = process.env.JENKINS_TEST_URL || 'http://localhost:8081/jenkins';
 assert(['localhost', '127.0.0.1'].includes(new URL(base).hostname), 'Only local Jenkins may be tested');
 const browser = await chromium.launch();
 try {

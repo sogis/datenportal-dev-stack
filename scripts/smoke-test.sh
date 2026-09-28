@@ -17,9 +17,9 @@ set +a
 
 PUBLIC_PORT="${GARAGE_PUBLIC_PORT:-8081}"
 PUBLIC_URL="http://localhost:${PUBLIC_PORT}/ch.so.daten"
-EDITOR_URL="http://localhost:${PUBLIC_PORT}/metadaten-editor"
-JENKINS_URL="http://localhost:${JENKINS_PORT:-8080}"
-SODATA_URL="http://localhost:${SODATA_PORT:-8082}"
+EDITOR_URL="http://localhost:${PUBLIC_PORT}/datenblatt-editor"
+JENKINS_URL="http://localhost:${PUBLIC_PORT}/jenkins"
+SODATA_URL="http://localhost:${PUBLIC_PORT}"
 SMOKE_KEY="_dev-stack-smoke/$$-$(date +%s).txt"
 SMOKE_NAME="${SMOKE_KEY##*/}"
 ROOT_SMOKE_KEY="_dev-stack-smoke-$$-$(date +%s).txt"
@@ -107,6 +107,20 @@ if [[ "${downloaded}" != "${SMOKE_TEXT}" ]]; then
   exit 1
 fi
 
+echo "Checking public Range ..."
+range_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -H 'Range: bytes=0-3' "${PUBLIC_URL}/${SMOKE_KEY}")"
+[[ "$range_status" == 206 ]] || { echo "Range returned $range_status, expected 206" >&2; exit 1; }
+python3 - "${PUBLIC_URL}/${SMOKE_KEY}" <<'PYTHON'
+import sys, urllib.request
+request = urllib.request.Request(sys.argv[1], headers={'Range': 'bytes=0-3', 'Origin': 'https://daten.so.ch'})
+with urllib.request.urlopen(request) as response:
+    assert response.read() == b'Date'
+    assert response.headers['Content-Range'].startswith('bytes 0-3/')
+    assert response.headers['Access-Control-Allow-Origin'] == '*'
+    assert 'content-range' in response.headers['Access-Control-Expose-Headers'].lower()
+PYTHON
+
+
 echo "Checking anonymous directory browsing ..."
 root_listing_html=""
 for _ in {1..15}; do
@@ -162,14 +176,6 @@ if [[ "${bucket_redirect_headers##*$'\n'}" != 308 ]] || \
   exit 1
 fi
 
-echo "Checking unmatched public path ..."
-unmatched_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
-  "http://localhost:${PUBLIC_PORT}/not-a-stack-route")"
-if [[ "${unmatched_status}" != 404 ]]; then
-  echo "Unmatched public path returned HTTP ${unmatched_status}, expected 404." >&2
-  exit 1
-fi
-
 echo "Checking CORS preflight ..."
 cors_headers="$(curl --fail --silent --show-error --dump-header - --output /dev/null \
   -X OPTIONS \
@@ -195,40 +201,31 @@ docker compose run --rm garage-init >/dev/null
 website_disabled=false
 curl --fail --silent --show-error "${PUBLIC_URL}/" -o /dev/null
 
+python3 "$SCRIPT_DIR/test-docs-gateway.py" --base-url "$SODATA_URL"
+
 echo "Checking Datenblatt-Editor start page ..."
 editor_redirect_headers="$(curl --silent --show-error --dump-header - --output /dev/null \
   --write-out '\n%{http_code}' "${EDITOR_URL}")"
 if [[ "${editor_redirect_headers##*$'\n'}" != 308 ]] || \
-  ! grep -Fqi 'Location: /metadaten-editor/' <<<"${editor_redirect_headers}"; then
+  ! grep -Fqi 'Location: /datenblatt-editor/' <<<"${editor_redirect_headers}"; then
   echo "Editor root did not redirect to its slash URL: ${editor_redirect_headers}" >&2
   exit 1
 fi
 editor_html="$(curl --fail --silent --show-error "${EDITOR_URL}/")"
-if ! grep -q '<base href="/metadaten-editor/">' <<<"${editor_html}"; then
+if ! grep -q '<base href="/datenblatt-editor/">' <<<"${editor_html}"; then
   echo "Editor response did not contain the expected public base path." >&2
   exit 1
 fi
 
 echo "Checking Datenblatt-Editor deep link ..."
 deep_link_html="$(curl --fail --silent --show-error "${EDITOR_URL}/draft/smoke-test")"
-if ! grep -q '<base href="/metadaten-editor/">' <<<"${deep_link_html}"; then
+if ! grep -q '<base href="/datenblatt-editor/">' <<<"${deep_link_html}"; then
   echo "Editor deep link did not contain the expected public base path." >&2
   exit 1
 fi
 
 echo "Checking Datenblatt-Editor HEAD ..."
 curl --fail --silent --show-error --head "${EDITOR_URL}/" >/dev/null
-
-echo "Checking Datenblatt-Editor CORS preflight ..."
-editor_cors_headers="$(curl --fail --silent --show-error --dump-header - --output /dev/null \
-  -X OPTIONS \
-  -H 'Origin: http://localhost:8080' \
-  -H 'Access-Control-Request-Method: GET' \
-  "${EDITOR_URL}/")"
-if ! grep -qi '^Access-Control-Allow-Origin: \*' <<<"${editor_cors_headers}"; then
-  echo "Editor CORS response did not contain Access-Control-Allow-Origin: *." >&2
-  exit 1
-fi
 
 echo "Checking Datenblatt-Editor static source ..."
 curl --fail --silent --show-error \
@@ -249,7 +246,7 @@ docker compose exec -T jenkins curl --fail --silent --show-error "${PUBLIC_URL}/
 echo "Checking Portal (sodata) ..."
 if curl --fail --silent --show-error --max-time 5 "${PUBLIC_URL}/current.json" >/dev/null 2>&1; then
   echo "Checking Portal health ..."
-  curl --fail --silent --show-error "${SODATA_URL}/actuator/health" -o /dev/null
+  docker compose exec -T jenkins curl --fail --silent --show-error http://sodata:8080/actuator/health -o /dev/null
 
   echo "Checking Portal start page ..."
   curl --fail --silent --show-error "${SODATA_URL}/" -o /dev/null
@@ -275,6 +272,46 @@ else
   echo "Skipping Portal (sodata) checks: current.json is not published yet."
 fi
 
+echo "Checking gateway routes and public admin denial ..."
+python3 - "$SODATA_URL" <<'PYTHON'
+import sys, urllib.request, urllib.error
+base = sys.argv[1]
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args): return None
+opener = urllib.request.build_opener(NoRedirect)
+for path, expected, target in [
+    ('/anlieferung', 302, '/jenkins/gretl-datenportal/'),
+    ('/jenkins', 308, '/jenkins/'),
+    ('/metadaten-editor', 308, '/datenblatt-editor/'),
+    ('/metadaten-editor/draft/test?x=1', 308, '/datenblatt-editor/draft/test?x=1')]:
+    try: response = opener.open(base + path)
+    except urllib.error.HTTPError as error: response = error
+    assert response.code == expected, (path, response.code)
+    assert response.headers['Location'] == target, (path, response.headers['Location'])
+for path in ['/admin', '/admin/catalog/status', '/admin/catalog/reload', '/actuator', '/actuator/health', '/apisix/admin/routes']:
+    for method in ['GET', 'POST']:
+        for headers in [{}, {'X-Reload-Token': 'invalid-smoke-token'}]:
+            try: response = opener.open(urllib.request.Request(base + path, method=method, headers=headers))
+            except urllib.error.HTTPError as error: response = error
+            assert response.code == 403, (path, method, response.code)
+PYTHON
+
+docker compose exec -T jenkins bash -s -- "$SODATA_URL" <<'SH'
+set -euo pipefail
+if [[ -z "${ORG_GRADLE_PROJECT_portalReloadToken:-}" ]]; then
+  echo "Skipping valid-token check: no reload token configured."
+  exit 0
+fi
+for endpoint in status reload; do
+  method=GET
+  [[ "$endpoint" != reload ]] || method=POST
+  code=$(printf 'X-Reload-Token: %s\n' "$ORG_GRADLE_PROJECT_portalReloadToken" |
+    curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+      --header @- --request "$method" "$1/admin/catalog/$endpoint")
+  [[ "$code" == 403 ]] || { echo "Public $endpoint with valid token returned $code" >&2; exit 1; }
+done
+SH
+
 echo "Checking Jenkins login endpoint ..."
 curl --fail --silent --show-error "${JENKINS_URL}/login" -o /dev/null
 
@@ -287,4 +324,4 @@ if ! grep -q '"numExecutors"' <<<"${jenkins_api}"; then
   exit 1
 fi
 
-echo "Garage, S3 browser, Datenblatt-Editor, Portal and Jenkins smoke tests passed."
+echo "Garage, S3 browser, Dokumentation, Datenblatt-Editor, Portal and Jenkins smoke tests passed."

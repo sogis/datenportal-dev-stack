@@ -80,9 +80,10 @@ Dienste. Deren konfigurierte Healthchecks müssen erfolgreich sein.
 |`./scripts/up.sh` |Editor aus Registry. Jenkins- und Portal-Image werden wiederverwendet, sonst gepullt. Nur ein eindeutig fehlender Registry-Tag erlaubt den lokalen Fallback der jeweiligen Komponente.
 |`./scripts/up.sh --local-editor` |Editor neu aus dem Schwester-Repo bauen; Jenkins und Portal wie beim Standardaufruf.
 |`./scripts/up.sh --local-jenkins` |Jenkins einschliesslich Plugin und Bundle neu bauen, Plugin im Volume ersetzen, Jenkins neu erzeugen.
+|`./scripts/up.sh --local-docs` |Dokumentation mit Thoth aus lokalen Working-Trees erzeugen, anschliessend Image bauen. Java 25 und Python mit PyYAML erforderlich.
 |`./scripts/up.sh --local-sodata` |Portal-Image neu aus `../datenportal-sodata` bauen und als Container verwenden.
 |`./scripts/up.sh --local-editor --local-jenkins --local-sodata` |Empfohlener Weg für den aktuellen Entwicklungsstand aller lokalen Komponenten.
-|`./scripts/up.sh --registry-only` |Kein lokaler Jenkins- oder Portal-Fallback. Mit `--local-editor` kombinierbar, mit `--local-jenkins` oder `--local-sodata` unzulässig.
+|`./scripts/up.sh --registry-only` |Kein lokaler Jenkins- oder Portal-Fallback. Mit `--local-editor` kombinierbar, mit `--local-jenkins`, `--local-sodata` oder `--local-docs` unzulässig.
 |`./scripts/up.sh --help` |Optionen ausgeben, nichts starten.
 |===
 
@@ -121,3 +122,9 @@ docker compose -f compose.yaml -f compose.editor-local.yaml \
 `ps`, `logs` und `exec` adressieren die bereits laufenden Dienste. Für ein
 Update mit HPI-Synchronisierung weiterhin `up.sh --local-jenkins` verwenden;
 für den Portalstand `up.sh --local-sodata`.
+
+Die Dokumentation verwendet beim Normalstart das vorhandene Registry-Image
+oder zieht es, falls es fehlt. Pullfehler führen zum Abbruch; es gibt keinen
+automatischen lokalen Fallback. `--local-docs` baut immer neu und verwendet
+`compose.docs-local.yaml`. Die Dokumentation ist bereits vor der ersten
+Katalogpublikation unter `/dokumentation/` verfügbar.

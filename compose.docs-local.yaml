@@ -1,0 +1,7 @@
+services:
+  dokumentation:
+    image: datenportal-dokumentation:local
+    pull_policy: never
+    build:
+      context: ${DOCS_REPO_DIR:-../datenportal-dokumentation}
+      dockerfile: Dockerfile

@@ -38,6 +38,12 @@ services:
       retries: 30
       start_period: 5s
 
+  dokumentation:
+    image: ${DATENPORTAL_DOCS_IMAGE:-sogis/datenportal-dokumentation:latest}
+    restart: unless-stopped
+    expose:
+      - "8080"
+
   s3-browser:
     image: rclone/rclone:1.75.1
     restart: unless-stopped
@@ -80,12 +86,12 @@ services:
       garage:
         condition: service_healthy
     ports:
-      - "${JENKINS_PORT:-8080}:8080"
       - "${GARAGE_PUBLIC_PORT:-8081}:${GARAGE_PUBLIC_PORT:-8081}"
     environment:
       JENKINS_RUNTIME_MODE: dev
       CASC_JENKINS_CONFIG: /opt/datenportal/casc/jenkins-local.yaml
-      JENKINS_URL: http://localhost:${JENKINS_PORT:-8080}/
+      JENKINS_URL: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/jenkins/
+      JENKINS_OPTS: --prefix=/jenkins
       THEMEN_REPO_MODE: working-tree
       THEMEN_REPO_URL: ""
       THEMEN_REPO_PATH: /workspace/themenrepo
@@ -106,7 +112,7 @@ services:
       - ../datenportal-jenkins-dev/casc/jenkins.yaml:/opt/datenportal/casc/jenkins-local.yaml:ro
       - ../datenportal-themenrepo:/workspace/themenrepo:ro
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/login >/dev/null"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/jenkins/login >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 30
@@ -120,6 +126,8 @@ services:
       jenkins:
         condition: service_started
       garage:
+        condition: service_healthy
+      dokumentation:
         condition: service_healthy
       datenblatt-editor:
         condition: service_healthy
@@ -144,8 +152,8 @@ services:
     depends_on:
       downloads:
         condition: service_healthy
-    ports:
-      - "${SODATA_PORT:-8082}:8080"
+    expose:
+      - "8080"
     environment:
       DATENPORTAL_ADMIN_RELOAD_TOKEN: ${DATENPORTAL_PORTAL_RELOAD_TOKEN:-}
       DATENPORTAL_CATALOG_SOURCE_TYPE: manifest

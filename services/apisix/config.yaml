@@ -13,3 +13,5 @@ nginx_config:
   error_log: /dev/stderr
   http:
     access_log: /dev/stdout
+    # Local upload ceiling: 256 MiB, including multipart overhead.
+    client_max_body_size: 256m

@@ -72,9 +72,10 @@ Implementierungsänderungen und gezielte lokale Abnahmen vorgesehen.
 |===
 |Prüfung |Voraussetzungen |Umfang und Nebenwirkungen
 |`docker compose … config --quiet` |Initialisierte ignorierte Konfiguration |Compose-Auflösung mit den tatsächlich verwendeten Override-Dateien; kein Start, keine Secret-Ausgabe.
-|`./scripts/smoke-test.sh` |Laufender Stack, Bash, Docker, curl; lokale JCasC mit `admin` / `admin` |Temporäre S3-Objekte, Schreib-/Leserechte, CORS, Editor-Pfade und Jenkins-API. Sperrt Websitezugriff kurzzeitig und stellt ihn im Cleanup wieder her. Nur bei ruhendem lokalen Betrieb ausführen. Prüft keinen vollständigen Lieferzyklus und keinen Portalbestand.
+|`./scripts/smoke-test.sh` |Laufender Stack, Bash, Docker, curl; lokale JCasC mit `admin` / `admin` |Temporäre S3-Objekte, Schreib-/Leserechte, CORS, Editor-Pfade und Jenkins-API. Sperrt Websitezugriff kurzzeitig und stellt ihn im Cleanup wieder her. Nur bei ruhendem lokalen Betrieb ausführen. Prüft Gateway-Weiterleitungen, Adminsperren und bei vorhandenem Manifest die Portal-DuckDB; startet keinen Lieferjob.
 |`python3 scripts/test-publication.py` |Python 3, Docker, Git, aktuelles Jenkins-Testimage, Themenrepo und Pilotdaten als Geschwister |Eigene Garage, HTTP-Lesedienst, Fehlerproxy, Netzwerk und isoliertes Bare-Repo. Lieferfolgen, RDF-Endpunkt/Content-Type, Reihenfolge XTF→RDF→Reload, verlorene Uploadantworten, getrennte Fehlerzustände, S3-/Git-Fehlerfälle und reine Vorbereitung trotz aktivierter Schreibschalter. Eigene Container werden entfernt; Berichte bleiben im ausgegebenen temporären Verzeichnis. Keine Nutzung laufender Stack-Volumes.
 |`python3 scripts/test-portal-manifest.py` |Python 3, Portal-Checkout und dessen JDK-25-/Frontend-Buildvoraussetzungen |Eigene HTTP-Quelle und temporärer lokaler `bootRun`-Prozess; Null-Katalog, Reload und Fehlererhalt. Stoppt den eigenen Prozess, ersetzt kein Portal-Deployment.
+|`node scripts/test-gateway-delivery.mjs` |Wie Formulartest, zusätzlich initialisierter Publikationsbestand und gesetztes Reload-Token; keine laufende Lieferung |Publiziert die Pilotdateien zur Altersstruktur (Ausgabe 2025) über das echte Multipart-Formular, prüft Buildbericht, neue Manifestgeneration und aktivierte Portal-DuckDB. Verändert den lokalen Publikationsbestand; nur im lokalen Teststack ausführen.
 |`node scripts/test-jenkins-form.mjs` |Node 22, Playwright aus installiertem Editor-`node_modules` samt Browser, laufender aktueller Jenkins und erfolgreicher Seed |Beide Formularmodi, Ausgabepflicht, Feldbereinigung und Pipeline-Lock. Startet keinen Lieferjob.
 |===
 
@@ -137,3 +138,51 @@ Abhängigkeit und verändert keine bestehenden Stack-Volumes.
 Content-Type, Uploadreihenfolge, beschädigtes Rücklesen und fehlende Parquet-Dateien.
 `test-portal-manifest.py` prüft gemeinsamen Reload, alte Hash-URLs und den Erhalt
 beider Artefakte bei beschädigter DuckDB.
+
+== Dokumentation lokal aktualisieren
+
+[source,bash]
+----
+./scripts/up.sh --local-docs
+----
+
+Der Aufruf baut zuerst Thoth-Biblios, dann die Dokumentation inklusive
+uncommitteter Inhalte aus lokalen Schwester-Repositories und zuletzt das
+Image `datenportal-dokumentation:local`. `THOTH_JAR` überspringt den Thoth-Build
+und verwendet ein vorhandenes All-JAR mit `build --use-local-working-tree`.
+Java 25 (`JAVA_HOME`), Git und Python mit PyYAML werden benötigt; bevorzugt wird
+die `.venv` des Dokumentationsrepositories. Fehlende lokale Quellen bleiben
+mit sichtbarem Hinweis Remote-Quellen. Detached HEAD wird abgelehnt.
+Während des Builds keine Vorschau auf denselben Ausgabeordner schreiben lassen.
+
+Nur die Dokumentation aktualisieren, ohne Jenkins/Portal neu zu starten:
+
+[source,bash]
+----
+./scripts/build-docs-local.sh
+# Alternativer gemeinsamer Quellordner:
+# ./scripts/build-docs-local.sh --sources-root /pfad/zu/quellen
+docker compose -f compose.yaml -f compose.docs-local.yaml \
+  up -d --no-deps --wait dokumentation
+python3 scripts/test-docs-gateway.py --base-url http://localhost:8081
+----
+
+Bei einem abweichenden `GARAGE_PUBLIC_PORT` die Testadresse anpassen.
+Der Gatewaytest ist lesend und prüft Seiten, Assets/SVG, Suche, HEAD,
+Weiterleitungen mit Queryparametern und 404. Er ist auch Teil des Smoke-Tests.
+`--local-docs` erzeugt einen festen Buildstand, keinen laufenden Vorschauprozess.
+
+Weitere isolierte Dokumentationsprüfungen:
+
+[source,bash]
+----
+python3 scripts/test-docs-start.py
+python3 scripts/test-docs-working-tree.py
+----
+
+Der Starttest verwendet simulierte Werkzeuge und prüft Optionen, Registryfehler,
+Buildabbruch und Shell-Overrides ohne Stackänderungen. Der Working-Tree-Test
+benötigt die obigen Buildvoraussetzungen und Docker: Er erzeugt ein temporäres
+Git-Repository mit uncommittierter Änderung, baut HTML und Image und prüft die
+Auslieferung durch echtes APISIX mit den Stack-Routen. Er entfernt nur seine
+eigenen Container, sein Netzwerk und sein Testimage.

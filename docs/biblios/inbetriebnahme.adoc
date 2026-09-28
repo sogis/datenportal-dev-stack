@@ -5,7 +5,7 @@
 == Dienste, Adressen und Seeder
 
 Nach xref:start.adoc[dem lokalen Start] Jenkins unter
-`http://localhost:8080/` öffnen; die lokale JCasC stellt `admin` / `admin`
+`http://localhost:8081/jenkins/` öffnen; die lokale JCasC stellt `admin` / `admin`
 bereit. Das Plugin erzeugt `gretl-datenportal-seed` automatisch. Diesen Job
 starten und einen erfolgreichen Abschluss sowie die erzeugten Organisationsjobs
 prüfen. Seine periodische Ausführung ersetzt diese Erstprüfung nicht.
@@ -21,9 +21,9 @@ Die Organisationsberechtigungen aus dem Themenrepo gelten für beide Formularmod
 |Zweck |Host/Browser |Innerhalb des Compose-Netzes
 |S3-Schreiben |`http://localhost:3900` |`http://garage:3900`
 |Manifest lesen |`http://localhost:8081/ch.so.daten/current.json` |Jenkins: `http://localhost:<GARAGE_PUBLIC_PORT>/ch.so.daten/current.json`; Sodata: `http://jenkins:<GARAGE_PUBLIC_PORT>/ch.so.daten/current.json`
-|Editor |`http://localhost:8081/metadaten-editor/` |`http://datenblatt-editor:8080/` (ohne öffentlichen Prefix)
-|Jenkins |`http://localhost:8080/` |`http://jenkins:8080/`
-|Portal |`http://localhost:8082/` |`http://sodata:8080/`
+|Editor |`http://localhost:8081/datenblatt-editor/` |`http://datenblatt-editor:8080/` (ohne öffentlichen Prefix)
+|Jenkins |`http://localhost:8081/jenkins/` |`http://jenkins:8080/jenkins/`
+|Portal |`http://localhost:8081/` |`http://sodata:8080/`
 |===
 
 APISIX teilt den Netzwerkraum von Jenkins: dort bezeichnet `localhost` denselben
@@ -240,7 +240,7 @@ Compose-Befehl verwenden und prüfen:
 
 [source,bash]
 ----
-curl -fS http://localhost:8082/actuator/health
+docker compose exec -T jenkins curl -fS http://sodata:8080/actuator/health
 ----
 
 Für optionalen Reload in der ignorierten `.env` setzen:

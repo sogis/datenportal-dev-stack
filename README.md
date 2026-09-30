@@ -27,7 +27,7 @@ Secrets werden nicht ersetzt. Alle direkten Compose-Aufrufe dieser Variante
 verwenden beide Dateien. Keine Kombination mit `--local-*`.
 Der vollständige Ablauf mit Seed, Erstpublikation und einzeln heruntergeladenen
 Beispieldateien steht in der
-[Betriebsdoku](https://codeberg.org/edigonzales/datenportal-dokumentation-betrieb/src/branch/main/docs/biblios/lokal-kennenlernen.adoc).
+[Betriebsdoku](https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/docs/biblios/lokal-kennenlernen.adoc).
 
 Für den empfohlenen Entwicklungsweg werden Docker mit Compose v2, Bash,
 OpenSSL, Git, rsync, Python 3, Maven sowie Java 17 und Java 21 benötigt. Die benötigten Checkouts und Java-Einstellungen stehen unter

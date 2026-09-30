@@ -201,4 +201,4 @@ mit Docker-Stubs die Override-Auswahl, die Compose-Mindestversion, unzulässige
 Buildoptionen und fehlende Registry-Images. Die Docs-Tests sichern weiterhin
 lokale Dokumentationsbuilds und die Priorität der Image-Auswahl ab.
 Die vollständige Abnahme mit Seed und Lieferung steht im
-link:https://codeberg.org/edigonzales/datenportal-dokumentation-betrieb/src/branch/main/pruefprotokolle/2026-09-30-registry-stack.md[Registry-Prüfprotokoll].
+link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/pruefprotokolle/2026-09-30-registry-stack.md[Registry-Prüfprotokoll].

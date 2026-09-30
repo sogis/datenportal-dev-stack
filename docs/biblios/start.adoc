@@ -28,7 +28,7 @@ docker compose -f compose.yaml -f compose.registry.yaml down
 
 Sodata erst bei gültigem Publikationsmanifest starten. Seed, Erstinitialisierung
 und Testlieferung ohne weitere Checkouts stehen in der
-link:https://codeberg.org/edigonzales/datenportal-dokumentation-betrieb/src/branch/main/docs/biblios/lokal-kennenlernen.adoc[Betriebsdoku].
+link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/docs/biblios/lokal-kennenlernen.adoc[Betriebsdoku].
 
 == Checkouts und Werkzeuge für die Entwicklung
 

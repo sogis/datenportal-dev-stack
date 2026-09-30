@@ -22,7 +22,8 @@ nohup.out
 __MACOSX/
 .AppleDouble
 .LSOverride
-Icon[]
+Icon[
+]
 
 # Thumbnails
 ._*
@@ -121,3 +122,6 @@ replay_pid*
 # Lokale Zugangsdaten und generierte Konfiguration des Dev-Stacks
 /.env
 /services/garage/garage.toml
+
+# Einzeln heruntergeladene Dateien für die Registry-Demonstration.
+demo-inputs/

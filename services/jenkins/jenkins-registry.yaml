@@ -1,0 +1,40 @@
+# Nur für die lokale Testumgebung; keine produktive Anmeldung.
+jenkins:
+  systemMessage: 'Datenportal Registry-Testumgebung'
+  numExecutors: 1
+  mode: NORMAL
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: admin
+          password: 'admin'
+  authorizationStrategy:
+    projectMatrix:
+      entries:
+        - user:
+            name: admin
+            permissions: ['Overall/Administer']
+unclassified:
+  location:
+    url: '${JENKINS_URL}'
+  lockableResourcesManager:
+    declaredResources:
+      - name: datenportal-topic-repository
+  gretlDatenportalJobs:
+    displayName: GRETL Datenportal Jobs
+    urlName: gretl-datenportal
+    topicRepositoryMode: managed-git
+    topicRepositoryUrl: '${THEMEN_REPO_URL}'
+    topicRepositoryBranch: '${THEMEN_REPO_BRANCH}'
+    topicRepositoryPath: ''
+    topicRepositoryWriteBackEnabled: false
+    seedJobAutoCreate: true
+    seedJobCron: 'H/15 * * * *'
+    seedJobBuildsToKeep: 20
+    seedJobOperatorsTeam: gretl-datenportal-seed-operators
+tool:
+  git:
+    installations:
+      - name: Default
+        home: git

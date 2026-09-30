@@ -186,3 +186,19 @@ benötigt die obigen Buildvoraussetzungen und Docker: Er erzeugt ein temporäres
 Git-Repository mit uncommittierter Änderung, baut HTML und Image und prüft die
 Auslieferung durch echtes APISIX mit den Stack-Routen. Er entfernt nur seine
 eigenen Container, sein Netzwerk und sein Testimage.
+
+== Registry-Start ohne Schwester-Repositories prüfen
+
+[source,bash]
+----
+python3 scripts/test-registry-start.py
+python3 scripts/test-docs-start.py
+----
+
+Die Registry-Prüfung verwendet ein temporäres Verzeichnis ohne Schwester-Repos.
+Sie prüft die aufgelösten Compose-Mounts und Image-Tags ohne Containerstart sowie
+mit Docker-Stubs die Override-Auswahl, die Compose-Mindestversion, unzulässige
+Buildoptionen und fehlende Registry-Images. Die Docs-Tests sichern weiterhin
+lokale Dokumentationsbuilds und die Priorität der Image-Auswahl ab.
+Die vollständige Abnahme mit Seed und Lieferung steht im
+link:https://codeberg.org/edigonzales/datenportal-dokumentation-betrieb/src/branch/main/pruefprotokolle/2026-09-30-registry-stack.md[Registry-Prüfprotokoll].

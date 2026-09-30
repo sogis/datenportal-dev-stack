@@ -5,6 +5,26 @@ APISIX für sämtliche öffentlichen HTTP-Zugänge, Datenblatt-Editor, Portal un
 Jenkins/GRETL sowie die Dokumentation. Die Komponenten und ihre Buildlogik bleiben in den jeweiligen
 Schwester-Repositories.
 
+Für eine Testumgebung nur mit veröffentlichten, versionsgetaggten Images genügt
+dieser Checkout (Docker Compose >= 2.24.4, Git, Bash, OpenSSL, curl und Python 3):
+
+```bash
+./scripts/up.sh --registry-only
+docker compose -f compose.yaml -f compose.registry.yaml ps -a
+```
+
+`compose.registry.yaml` ersetzt die Schwesterrepo-Mounts durch die Test-JCasC
+in diesem Repository. Jenkins verwendet `managed-git` und bezieht
+`https://github.com/sogis/datenportal-themenrepo.git` (Branch `main`) selbst.
+Git-Rückschreiben bleibt aus. Sodata verwendet das native Image
+`sogis/datenportal-sodata:0.1.10`, Jenkins `0.1.0-3`, Dokumentation `0.1.18`.
+Bei bestehenden `.env`-Dateien diese drei Image-Werte gezielt aktualisieren;
+Secrets werden nicht ersetzt. Alle direkten Compose-Aufrufe dieser Variante
+verwenden beide Dateien. Keine Kombination mit `--local-*`.
+Der vollständige Ablauf mit Seed, Erstpublikation und einzeln heruntergeladenen
+Beispieldateien steht in der
+[Betriebsdoku](https://codeberg.org/edigonzales/datenportal-dokumentation-betrieb/src/branch/main/docs/biblios/lokal-kennenlernen.adoc).
+
 Für den empfohlenen Entwicklungsweg werden Docker mit Compose v2, Bash,
 OpenSSL, Git, rsync, Python 3, Maven sowie Java 17 und Java 21 benötigt. Die benötigten Checkouts und Java-Einstellungen stehen unter
 [Voraussetzungen und Start](docs/biblios/start.adoc).
@@ -55,7 +75,7 @@ Direktports 8080/8082 und die Variablen `JENKINS_PORT`/`SODATA_PORT` entfallen.
 Alte Editorpfade unter `/metadaten-editor` werden weitergeleitet. Der bestehende
 Downloadpfad bleibt erhalten; vorhandene Volumes nicht neu initialisieren.
 
-Die Dokumentation verwendet standardmässig `sogis/datenportal-dokumentation:latest`
+Die Dokumentation verwendet standardmässig `sogis/datenportal-dokumentation:0.1.18`
 (überschreibbar mit `DATENPORTAL_DOCS_IMAGE`), ohne lokalen Registry-Fallback.
 Mit `./scripts/up.sh --local-docs` werden zuerst die lokalen Dokumentationsquellen
 inklusive uncommitteter Inhalte mit Thoth und danach das Image gebaut. Benötigt

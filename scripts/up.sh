@@ -36,7 +36,7 @@ while [[ "$#" -gt 0 ]]; do
       echo "  --local-jenkins  build datenportal-jenkins from ../datenportal-jenkins-dev"
       echo "  --local-sodata   build datenportal-sodata from ../datenportal-sodata"
       echo "  --local-docs     build documentation from local working trees, then its image"
-      echo "  --registry-only  never fall back to a local Jenkins or Sodata build"
+      echo "  --registry-only  use versioned images and remote topics without sibling checkouts (Compose >= 2.24.4)"
       exit 0
       ;;
     *)
@@ -48,9 +48,20 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-if [[ "$registry_only" == true && ("$local_jenkins" == true || "$local_sodata" == true || "$local_docs" == true) ]]; then
-  echo "--registry-only cannot be combined with --local-jenkins, --local-sodata or --local-docs." >&2
+if [[ "$registry_only" == true && ("$local_editor" == true || "$local_jenkins" == true || "$local_sodata" == true || "$local_docs" == true) ]]; then
+  echo "--registry-only cannot be combined with --local-editor, --local-jenkins, --local-sodata or --local-docs." >&2
   exit 2
+fi
+
+if [[ "$registry_only" == true ]]; then
+  compose_version="$(docker compose version --short)"
+  if [[ ! "$compose_version" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+) ]] ||
+      (( BASH_REMATCH[1] < 2 || (BASH_REMATCH[1] == 2 &&
+         (BASH_REMATCH[2] < 24 || (BASH_REMATCH[2] == 24 && BASH_REMATCH[3] < 4))) )); then
+    echo "--registry-only requires Docker Compose >= 2.24.4 (volume !override)." >&2
+    exit 2
+  fi
+  compose_files+=(-f compose.registry.yaml)
 fi
 
 # Keep explicit shell overrides when .env is loaded below. This makes commands
@@ -127,14 +138,23 @@ for ((left = 0; left < ${#port_values[@]}; left++)); do
   done
 done
 
+if [[ "$registry_only" == true ]]; then
+  # Validate the merged mounts before starting any service; never print secrets.
+  docker compose "${compose_files[@]}" config --quiet
+fi
+
 if [[ "$local_docs" == true ]]; then
   ./scripts/build-docs-local.sh
   compose_files+=(-f compose.docs-local.yaml)
 else
-  docs_image="${DATENPORTAL_DOCS_IMAGE:-sogis/datenportal-dokumentation:latest}"
+  docs_image="${DATENPORTAL_DOCS_IMAGE:-sogis/datenportal-dokumentation:0.1.18}"
   if ! docker image inspect "$docs_image" >/dev/null 2>&1; then
     if ! docker pull "$docs_image"; then
-      echo "Dokumentationsimage nicht verfügbar: $docs_image. Für einen lokalen Build --local-docs verwenden." >&2
+      if [[ "$registry_only" == true ]]; then
+        echo "Dokumentationsimage nicht verfügbar: $docs_image. Versionstag und Registryzugriff prüfen." >&2
+      else
+        echo "Dokumentationsimage nicht verfügbar: $docs_image. Für einen lokalen Build --local-docs verwenden." >&2
+      fi
       exit 1
     fi
   fi
@@ -188,7 +208,7 @@ jenkins_local=false
 if [[ "$local_jenkins" == true ]]; then
   ./scripts/build-jenkins-local.sh
   jenkins_local=true
-elif ! resolve_registry_image "${DATENPORTAL_JENKINS_IMAGE:-sogis/datenportal-jenkins:0.1.0}" "Jenkins"; then
+elif ! resolve_registry_image "${DATENPORTAL_JENKINS_IMAGE:-sogis/datenportal-jenkins:0.1.0-3}" "Jenkins"; then
   echo "Jenkins registry tag not found; falling back to the local Jenkins image."
   if docker image inspect datenportal-jenkins:local >/dev/null 2>&1; then
     echo "Using cached local Jenkins image: datenportal-jenkins:local"
@@ -207,7 +227,7 @@ sodata_local=false
 if [[ "$local_sodata" == true ]]; then
   ./scripts/build-sodata-local.sh
   sodata_local=true
-elif ! resolve_registry_image "${DATENPORTAL_SODATA_IMAGE:-sogis/datenportal-sodata:0.1.0}" "Sodata"; then
+elif ! resolve_registry_image "${DATENPORTAL_SODATA_IMAGE:-sogis/datenportal-sodata:0.1.10}" "Sodata"; then
   echo "Sodata registry tag not found; falling back to the local Sodata image."
   if docker image inspect datenportal-sodata:local >/dev/null 2>&1; then
     echo "Using cached local Sodata image: datenportal-sodata:local"
@@ -312,7 +332,7 @@ print_sodata_start_command() {
   local compose_file
 
   for compose_file in "${compose_files[@]}"; do
-    command+=" -f ${compose_file}"
+    command+=" ${compose_file}"
   done
   echo "${command} up -d --wait --wait-timeout 120 sodata"
 }

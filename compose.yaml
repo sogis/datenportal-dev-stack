@@ -39,7 +39,7 @@ services:
       start_period: 5s
 
   dokumentation:
-    image: ${DATENPORTAL_DOCS_IMAGE:-sogis/datenportal-dokumentation:latest}
+    image: ${DATENPORTAL_DOCS_IMAGE:-sogis/datenportal-dokumentation:0.1.18}
     restart: unless-stopped
     expose:
       - "8080"
@@ -80,7 +80,7 @@ services:
       start_period: 5s
 
   jenkins:
-    image: ${DATENPORTAL_JENKINS_IMAGE:-sogis/datenportal-jenkins:0.1.0}
+    image: ${DATENPORTAL_JENKINS_IMAGE:-sogis/datenportal-jenkins:0.1.0-3}
     restart: unless-stopped
     depends_on:
       garage:
@@ -147,7 +147,7 @@ services:
       start_period: 5s
 
   sodata:
-    image: ${DATENPORTAL_SODATA_IMAGE:-sogis/datenportal-sodata:0.1.0}
+    image: ${DATENPORTAL_SODATA_IMAGE:-sogis/datenportal-sodata:0.1.10}
     restart: on-failure:3
     depends_on:
       downloads:

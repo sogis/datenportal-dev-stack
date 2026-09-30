@@ -1,0 +1,14 @@
+# Betriebsvariante: nur Registry-Images, keine Schwester-Checkouts.
+# !override ersetzt die gesamte Mount-Liste (Docker Compose >= 2.24.4).
+services:
+  jenkins:
+    environment:
+      CASC_JENKINS_CONFIG: /opt/datenportal/casc/jenkins-registry.yaml
+      THEMEN_REPO_MODE: managed-git
+      THEMEN_REPO_URL: ${THEMEN_REPO_URL:-https://github.com/sogis/datenportal-themenrepo.git}
+      THEMEN_REPO_PATH: ""
+      THEMEN_REPO_WRITE_BACK_ENABLED: "false"
+      ORG_GRADLE_PROJECT_gitWriteBack: "false"
+    volumes: !override
+      - jenkins-home:/var/jenkins_home
+      - ./services/jenkins/jenkins-registry.yaml:/opt/datenportal/casc/jenkins-registry.yaml:ro

@@ -2,7 +2,35 @@
 = Voraussetzungen und Start
 :page-layout: docs
 
-== Checkouts und Werkzeuge
+== Registry-Variante ohne Schwester-Repositories
+
+`./scripts/up.sh --registry-only` verwendet `compose.yaml` zusammen mit
+`compose.registry.yaml`. Nur der Dev-Stack muss lokal ausgecheckt sein.
+Erforderlich sind Docker Compose >= 2.24.4 (für `!override`), Git, Bash,
+OpenSSL, curl und Python 3. Die Test-JCasC kommt aus `services/jenkins/`;
+Jenkins bezieht das Themenrepo selbst von
+`https://github.com/sogis/datenportal-themenrepo.git`, Branch `main`.
+`THEMEN_REPO_URL` und `THEMEN_REPO_BRANCH` sind über `.env` konfigurierbar.
+Git-Rückschreiben bleibt ausgeschaltet. Das Portal verwendet das native Image.
+
+Neue `.env`-Dateien enthalten Jenkins `0.1.0-3`, Sodata `0.1.10` und
+Dokumentation `0.1.18`. Bei vorhandenen Dateien die Image-Werte gezielt
+aktualisieren, Secrets erhalten. Der Registry-Modus baut keine Images und ist
+mit keiner lokalen Buildoption kombinierbar. Direkte Befehle immer mit beiden
+Compose-Dateien ausführen, insbesondere den späteren Sodata-Start:
+
+[source,bash]
+----
+docker compose -f compose.yaml -f compose.registry.yaml config --quiet
+docker compose -f compose.yaml -f compose.registry.yaml up -d --wait --wait-timeout 120 sodata
+docker compose -f compose.yaml -f compose.registry.yaml down
+----
+
+Sodata erst bei gültigem Publikationsmanifest starten. Seed, Erstinitialisierung
+und Testlieferung ohne weitere Checkouts stehen in der
+link:https://codeberg.org/edigonzales/datenportal-dokumentation-betrieb/src/branch/main/docs/biblios/lokal-kennenlernen.adoc[Betriebsdoku].
+
+== Checkouts und Werkzeuge für die Entwicklung
 
 Schwester-Repositories liegen neben `datenportal-dev-stack`. Die Standardpfade
 sind relativ; lokale Benutzerpfade gehören nicht in die Konfiguration.
@@ -10,8 +38,8 @@ sind relativ; lokale Benutzerpfade gehören nicht in die Konfiguration.
 [cols="2,4",options="header"]
 |===
 |Repository |Benötigt für
-|`../datenportal-themenrepo` |Jeden Stackstart: read-only Quelle für Jenkins; ausserdem Buildvertrag und Initialisierung.
-|`../datenportal-jenkins-dev` |Jeden Stackstart: gemountete lokale JCasC. Bei lokalem Jenkins-Build auch Dockerfile, Offline-Bundle und Buildskripte.
+|`../datenportal-themenrepo` |Entwicklungsmodus ohne `--registry-only`: read-only Quelle für Jenkins; ausserdem Buildvertrag und Initialisierung.
+|`../datenportal-jenkins-dev` |Entwicklungsmodus ohne `--registry-only`: gemountete lokale JCasC. Bei lokalem Jenkins-Build auch Dockerfile, Offline-Bundle und Buildskripte.
 |`../datenportal-jenkins-gretl-plugin` |Lokalen Plugin-Build. Entfällt bei ausdrücklich gewähltem Maven-HPI oder vorhandenem HPI.
 |`../datenportal-datenblatt-editor` |`--local-editor` und Formular-Browsertest.
 |`../datenportal-pilot-daten` |Deklarierte CSV-/XTF-Fixtures für Liefer- und Integrationstests; nicht automatisch publiziert.
@@ -83,7 +111,7 @@ Dienste. Deren konfigurierte Healthchecks müssen erfolgreich sein.
 |`./scripts/up.sh --local-docs` |Dokumentation mit Thoth aus lokalen Working-Trees erzeugen, anschliessend Image bauen. Java 25 und Python mit PyYAML erforderlich.
 |`./scripts/up.sh --local-sodata` |Portal-Image neu aus `../datenportal-sodata` bauen und als Container verwenden.
 |`./scripts/up.sh --local-editor --local-jenkins --local-sodata` |Empfohlener Weg für den aktuellen Entwicklungsstand aller lokalen Komponenten.
-|`./scripts/up.sh --registry-only` |Kein lokaler Jenkins- oder Portal-Fallback. Mit `--local-editor` kombinierbar, mit `--local-jenkins`, `--local-sodata` oder `--local-docs` unzulässig.
+|`./scripts/up.sh --registry-only` |Versionierte Registry-Images ohne Schwester-Checkouts; eigene Test-JCasC und Git-Abruf im Jenkins-Container. Mit allen `--local-*`-Optionen unzulässig.
 |`./scripts/up.sh --help` |Optionen ausgeben, nichts starten.
 |===
 
@@ -91,8 +119,7 @@ Ein Registry-Authentisierungs- oder Netzwerkfehler führt zum Abbruch. Beim
 Fallback wird ein vorhandenes `datenportal-jenkins:local` beziehungsweise
 `datenportal-sodata:local` wiederverwendet; nur wenn es fehlt, wird gebaut.
 Ein vorhandenes Image wird nicht automatisch auf neue Registry-Inhalte geprüft.
-Solange kein Registry-Image für das Portal veröffentlicht ist, baut der
-Standardaufruf den lokalen Stand einmalig. Ein älteres Registry-Editor-Image
+Ein älteres Registry-Editor-Image
 muss die Manifestfunktion nicht enthalten; der lokale Build ist der verlässliche
 Weg, den aktuellen Checkout zu testen. Die Standardtags und Buildparameter
 stehen in xref:konfiguration.adoc[Konfiguration].

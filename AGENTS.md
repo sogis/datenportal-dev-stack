@@ -18,7 +18,7 @@ relativ:
 
 | Repository | Lokaler Pfad | Rolle im Gesamtsystem |
 | --- | --- | --- |
-| [datenportal-themenrepo](https://codeberg.org/edigonzales/datenportal-themenrepo) | `../datenportal-themenrepo` | Fachlicher Vertrag für Organisationen, Datensätze, Themenrepo-YAML, Shared Defaults, Teams, Jenkinsfile und den Gradle-/GRETL-Build-Vertrag. |
+| [datenportal-themenrepo](https://github.com/sogis/datenportal-themenrepo) | `../datenportal-themenrepo` | Fachlicher Vertrag für Organisationen, Datensätze, Themenrepo-YAML, Shared Defaults, Teams, Jenkinsfile und den Gradle-/GRETL-Build-Vertrag. |
 | [datenportal-pilot-daten](https://codeberg.org/edigonzales/datenportal-pilot-daten) | `../datenportal-pilot-daten` | Pilot- und Beispieldaten einschließlich XTF-Metadaten und CSV-Dateien für lokale Tests und Demos. |
 | [datenportal-datenblatt-editor](https://codeberg.org/edigonzales/datenportal-datenblatt-editor) | `../datenportal-datenblatt-editor` | Offlinefähiger Vue-/Vite-Metadateneditor für `Dataset` und `DatasetSeries`; besitzt sein eigenes Frontend und Docker-/NGINX-Image. |
 | [datenportal-dokumentation](https://codeberg.org/edigonzales/datenportal-dokumentation) | `../datenportal-dokumentation` | Thoth-Biblios-Konfiguration und Aggregator für die gemeinsame Datenportal-Dokumentationswebsite. |
@@ -28,7 +28,7 @@ relativ:
 | [datenportal-dokumentation-datenintegration](https://codeberg.org/edigonzales/datenportal-dokumentation-datenintegration) | `../datenportal-dokumentation-datenintegration` | Kanonische Dokumentation für Datenlieferanten und Datenintegration. |
 | [datenportal-dokumentation-glossar](https://codeberg.org/edigonzales/datenportal-dokumentation-glossar) | `../datenportal-dokumentation-glossar` | Kanonisches Glossar des Datenportals. |
 
-Die Codeberg-Links sind die dauerhaften Referenzen. Die lokalen Pfade dienen
+Die Remote-Links sind die dauerhaften Referenzen; das Themenrepo liegt auf GitHub. Die lokalen Pfade dienen
 nur der Entwicklung und dürfen nicht durch benutzerspezifische absolute Pfade
 wie `/Users/...` in Konfiguration oder Dokumentation ersetzt werden.
 
@@ -149,7 +149,7 @@ lokales Schwester-Repository fehlt, ist das im Ergebnis klar zu melden.
 Für fachliche und komponentenspezifische Aussagen zuerst die kanonischen
 Quellen konsultieren:
 
-- Themenrepo: [technische Entwicklungsdokumentation](https://codeberg.org/edigonzales/datenportal-themenrepo/src/branch/main/docs/biblios)
+- Themenrepo: [technische Entwicklungsdokumentation](https://github.com/sogis/datenportal-themenrepo/blob/main/docs/biblios)
 - Jenkins-Dev: [lokaler Jenkins und Entwicklungsdokumentation](https://codeberg.org/edigonzales/datenportal-jenkins-dev/src/branch/main/docs/biblios/entwicklung)
 - Jenkins-Plugin: [Plugin-Entwicklungsdokumentation](https://codeberg.org/edigonzales/datenportal-jenkins-gretl-plugin/src/branch/main/docs/biblios/entwicklung)
 - Datenportal-Webapp: [README und Agent-Regeln](https://codeberg.org/edigonzales/datenportal-sodata)

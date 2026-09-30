@@ -9,7 +9,7 @@ Stackskripten. Interne Shellvariablen sind keine zusätzlichen Einstellungen.
 Allgemeine Jenkins-, Java- und Offline-Bundle-Parameter bleiben in der
 link:https://codeberg.org/edigonzales/datenportal-jenkins-dev/src/branch/main/docs/biblios/entwicklung/referenz-konfiguration.adoc[Jenkins-Konfigurationsreferenz]
 kanonisch dokumentiert; fachliche Gradle-Properties im
-link:https://codeberg.org/edigonzales/datenportal-themenrepo/src/branch/main/docs/biblios/lieferverarbeitung.adoc[Publikationsvertrag].
+link:https://github.com/sogis/datenportal-themenrepo/blob/main/docs/biblios/lieferverarbeitung.adoc[Publikationsvertrag].
 
 * Direkter Compose-Aufruf: Shellwerte haben vor `.env` Vorrang, anschliessend
   gelten die Defaults der interpolierten `${VARIABLE:-default}`-Ausdrücke.
@@ -49,8 +49,8 @@ Compose-/Startaufrufs gemäss obiger Priorität. Wirksamkeit: Container neu erze
 [cols="2,3,4,1",options="header"]
 |===
 |Parameter |Default / Pflicht |Verbraucher und Wirkung |Secret
-|`DATENPORTAL_JENKINS_IMAGE` |`sogis/datenportal-jenkins:0.1.0` |`up.sh`, Basis-Compose: Jenkins-Image. Lokales Override setzt stattdessen fest `datenportal-jenkins:local`. |nein
-|`DATENPORTAL_SODATA_IMAGE` |`sogis/datenportal-sodata:0.1.0` |`up.sh`, Basis-Compose: Portal-Image. Lokales Override setzt stattdessen fest `datenportal-sodata:local`. |nein
+|`DATENPORTAL_JENKINS_IMAGE` |`sogis/datenportal-jenkins:0.1.0-3` |`up.sh`, Basis-Compose: Jenkins-Image. Lokales Override setzt stattdessen fest `datenportal-jenkins:local`. |nein
+|`DATENPORTAL_SODATA_IMAGE` |`sogis/datenportal-sodata:0.1.10` |`up.sh`, Basis-Compose: Portal-Image. Lokales Override setzt stattdessen fest `datenportal-sodata:local`. |nein
 |`GARAGE_S3_PORT` |`3900` |Garage-S3-Hostport. Ändert nicht `http://garage:3900` im Netz. |nein
 |`GARAGE_PUBLIC_PORT` |`8081` |Öffentlicher APISIX-Hostport und Listener-Port im gemeinsamen Jenkins-Netzwerkraum; Initialisierungsumgebung, Manifest- und Downloadadressen. Darf intern nicht 8080 oder mit einem anderen Hostport identisch sein. |nein
 |`THEMEN_REPO_BRANCH` |`main` |Jenkins/JCasC: gespeicherter Branch. Im festen `working-tree`-Modus kein Wechsel des lokalen Branches. Neuer Seed für Jobkontext. |nein
@@ -72,6 +72,27 @@ Downloadbasis wechseln dadurch *nicht* mit. Auch die Zugangsdaten bleiben die
 Garage-Schlüssel. Ein anderer Bucket/Endpunkt erfordert eine abgestimmte
 Integrationskonfiguration; ein einzelner Override ist kein vollständiger
 Wechsel des Storage-Backends.
+
+== Registry-Betriebsvariante
+
+Mit `--registry-only` lädt `up.sh` zusätzlich `compose.registry.yaml`.
+Es ersetzt alle Jenkins-Mounts durch Jenkins-Home und die Test-JCasC aus
+`services/jenkins/jenkins-registry.yaml`; keine Schwester-Repositories nötig.
+Die folgenden Abweichungen gelten gegenüber der Basis-Compose-Datei:
+
+[cols="2,4",options="header"]
+|===
+|Einstellung |Registry-Variante
+|`THEMEN_REPO_URL` |Default `https://github.com/sogis/datenportal-themenrepo.git`; in `.env` überschreibbar.
+|`THEMEN_REPO_BRANCH` |Default `main`; in `.env` überschreibbar.
+|Repository-Modus |`managed-git`, `THEMEN_REPO_PATH` leer; Checkout im Jenkins-Volume.
+|Git-Schreiben |`THEMEN_REPO_WRITE_BACK_ENABLED=false` und `ORG_GRADLE_PROJECT_gitWriteBack=false`.
+|Jenkins-Anmeldung |Lokales Testkonto `admin` / `admin`, keine AD-Anbindung.
+|===
+
+Vorhandene `.env`-Dateien werden nicht durch neue Image-Defaults überschrieben.
+Versionierte Tags explizit prüfen und aktualisieren; Secrets erhalten.
+Direkte Compose-Aufrufe benötigen `-f compose.yaml -f compose.registry.yaml`.
 
 == Feste Compose-Werte und Betriebsarten
 
@@ -212,7 +233,7 @@ beschrieben; lokal empfängt APISIX direkt HTTP.
 
 == Dokumentation
 
-* `DATENPORTAL_DOCS_IMAGE`: Standard `sogis/datenportal-dokumentation:latest`;
+* `DATENPORTAL_DOCS_IMAGE`: Standard `sogis/datenportal-dokumentation:0.1.18`;
   alternativ ein anderer Tag, Digest oder GHCR-Image.
 * `DOCS_REPO_DIR`: Standard `../datenportal-dokumentation` (relativ zum Stack).
 * `THOTH_REPO_DIR`: Standard Schwesterverzeichnis `thoth` neben dem

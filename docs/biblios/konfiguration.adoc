@@ -50,7 +50,7 @@ Compose-/Startaufrufs gemäss obiger Priorität. Wirksamkeit: Container neu erze
 |===
 |Parameter |Default / Pflicht |Verbraucher und Wirkung |Secret
 |`DATENPORTAL_JENKINS_IMAGE` |`sogis/datenportal-jenkins:0.1.0-3` |`up.sh`, Basis-Compose: Jenkins-Image. Lokales Override setzt stattdessen fest `datenportal-jenkins:local`. |nein
-|`DATENPORTAL_SODATA_IMAGE` |`sogis/datenportal-sodata:0.1.10` |`up.sh`, Basis-Compose: Portal-Image. Lokales Override setzt stattdessen fest `datenportal-sodata:local`. |nein
+|`DATENPORTAL_SODATA_IMAGE` |`sogis/datenportal-sodata:0.1.11` |`up.sh`, Basis-Compose: Portal-Image. Lokales Override setzt stattdessen fest `datenportal-sodata:local`. |nein
 |`GARAGE_S3_PORT` |`3900` |Garage-S3-Hostport. Ändert nicht `http://garage:3900` im Netz. |nein
 |`GARAGE_PUBLIC_PORT` |`8081` |Öffentlicher APISIX-Hostport und Listener-Port im gemeinsamen Jenkins-Netzwerkraum; Initialisierungsumgebung, Manifest- und Downloadadressen. Darf intern nicht 8080 oder mit einem anderen Hostport identisch sein. |nein
 |`THEMEN_REPO_BRANCH` |`main` |Jenkins/JCasC: gespeicherter Branch. Im festen `working-tree`-Modus kein Wechsel des lokalen Branches. Neuer Seed für Jobkontext. |nein

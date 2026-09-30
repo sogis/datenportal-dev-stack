@@ -227,7 +227,7 @@ sodata_local=false
 if [[ "$local_sodata" == true ]]; then
   ./scripts/build-sodata-local.sh
   sodata_local=true
-elif ! resolve_registry_image "${DATENPORTAL_SODATA_IMAGE:-sogis/datenportal-sodata:0.1.10}" "Sodata"; then
+elif ! resolve_registry_image "${DATENPORTAL_SODATA_IMAGE:-sogis/datenportal-sodata:0.1.11}" "Sodata"; then
   echo "Sodata registry tag not found; falling back to the local Sodata image."
   if docker image inspect datenportal-sodata:local >/dev/null 2>&1; then
     echo "Using cached local Sodata image: datenportal-sodata:local"

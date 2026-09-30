@@ -13,7 +13,7 @@ Jenkins bezieht das Themenrepo selbst von
 `THEMEN_REPO_URL` und `THEMEN_REPO_BRANCH` sind über `.env` konfigurierbar.
 Git-Rückschreiben bleibt ausgeschaltet. Das Portal verwendet das native Image.
 
-Neue `.env`-Dateien enthalten Jenkins `0.1.0-3`, Sodata `0.1.10` und
+Neue `.env`-Dateien enthalten Jenkins `0.1.0-3`, Sodata `0.1.11` und
 Dokumentation `0.1.18`. Bei vorhandenen Dateien die Image-Werte gezielt
 aktualisieren, Secrets erhalten. Der Registry-Modus baut keine Images und ist
 mit keiner lokalen Buildoption kombinierbar. Direkte Befehle immer mit beiden
@@ -29,6 +29,22 @@ docker compose -f compose.yaml -f compose.registry.yaml down
 Sodata erst bei gültigem Publikationsmanifest starten. Seed, Erstinitialisierung
 und Testlieferung ohne weitere Checkouts stehen in der
 link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/docs/biblios/lokal-kennenlernen.adoc[Betriebsdoku].
+
+=== Sodata in einer bestehenden Registry-Installation aktualisieren
+
+Bei gültigem Publikationsmanifest in der vorhandenen `.env` den Wert
+`DATENPORTAL_SODATA_IMAGE=sogis/datenportal-sodata:0.1.11` setzen; die übrigen
+Werte und Secrets beibehalten. Danach:
+
+[source,bash]
+----
+docker compose -f compose.yaml -f compose.registry.yaml pull sodata
+docker compose -f compose.yaml -f compose.registry.yaml up -d --no-deps --force-recreate --wait --wait-timeout 120 sodata
+----
+
+Ein blosser `restart` übernimmt kein neues Image. Volumes und Publikationsbestand
+bleiben erhalten; keine erneute Erstinitialisierung ausführen. Anschliessend
+Suche, Download und «Daten erkunden» mit einer einfachen Abfrage prüfen.
 
 == Checkouts und Werkzeuge für die Entwicklung
 

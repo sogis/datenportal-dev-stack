@@ -147,7 +147,7 @@ services:
       start_period: 5s
 
   sodata:
-    image: ${DATENPORTAL_SODATA_IMAGE:-sogis/datenportal-sodata:0.1.10}
+    image: ${DATENPORTAL_SODATA_IMAGE:-sogis/datenportal-sodata:0.1.11}
     restart: on-failure:3
     depends_on:
       downloads:

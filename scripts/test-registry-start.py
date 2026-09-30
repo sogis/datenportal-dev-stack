@@ -71,7 +71,7 @@ esac
                 self.assertNotIn('\ninit\n', '\n' + trace)
 
     def test_missing_images_abort_without_build_or_container_start(self):
-        for image in ('sogis/datenportal-jenkins:0.1.0-3', 'sogis/datenportal-sodata:0.1.10',
+        for image in ('sogis/datenportal-jenkins:0.1.0-3', 'sogis/datenportal-sodata:0.1.11',
                       'sogis/datenportal-dokumentation:0.1.18'):
             with self.subTest(image=image):
                 (self.root / 'trace').unlink(missing_ok=True)
@@ -105,7 +105,7 @@ esac
         self.assertEqual(jenkins['environment']['THEMEN_REPO_MODE'], 'managed-git')
         self.assertEqual(jenkins['environment']['THEMEN_REPO_PATH'], '')
         self.assertEqual(jenkins['environment']['ORG_GRADLE_PROJECT_gitWriteBack'], 'false')
-        self.assertEqual(services['sodata']['image'], 'sogis/datenportal-sodata:0.1.10')
+        self.assertEqual(services['sodata']['image'], 'sogis/datenportal-sodata:0.1.11')
 
 
 if __name__ == '__main__':

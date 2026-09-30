@@ -17,13 +17,15 @@ docker compose -f compose.yaml -f compose.registry.yaml ps -a
 in diesem Repository. Jenkins verwendet `managed-git` und bezieht
 `https://github.com/sogis/datenportal-themenrepo.git` (Branch `main`) selbst.
 Git-Rückschreiben bleibt aus. Sodata verwendet das native Image
-`sogis/datenportal-sodata:0.1.10`, Jenkins `0.1.0-3`, Dokumentation `0.1.18`.
+`sogis/datenportal-sodata:0.1.11`, Jenkins `0.1.0-3`, Dokumentation `0.1.18`.
 Alle acht Image-Referenzen des Registry-Stacks wurden am 30.09.2026 direkt in
 der Registry geprüft und sind für `linux/amd64` und `linux/arm64` verfügbar.
 Bei einem frischen Checkout erzeugt `up.sh` die `.env` automatisch mit diesen
 Vorgaben; manuelle Image-Korrekturen sind nicht nötig. Nur bei einer älteren
 `.env` diese drei Image-Werte abgleichen und gegebenenfalls aktualisieren;
-Secrets werden nicht ersetzt. Alle direkten Compose-Aufrufe dieser Variante
+Secrets werden nicht ersetzt. Für ein bestehendes System das neue Sodata-Image
+laden und den Container neu erstellen; siehe [Image-Update](docs/biblios/start.adoc#_sodata_in_einer_bestehenden_registry_installation_aktualisieren).
+Alle direkten Compose-Aufrufe dieser Variante
 verwenden beide Dateien. Keine Kombination mit `--local-*`.
 Der vollständige Ablauf mit Seed, Erstpublikation und einzeln heruntergeladenen
 Beispieldateien steht in der

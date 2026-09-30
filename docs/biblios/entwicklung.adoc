@@ -200,5 +200,8 @@ Sie prüft die aufgelösten Compose-Mounts und Image-Tags ohne Containerstart so
 mit Docker-Stubs die Override-Auswahl, die Compose-Mindestversion, unzulässige
 Buildoptionen und fehlende Registry-Images. Die Docs-Tests sichern weiterhin
 lokale Dokumentationsbuilds und die Priorität der Image-Auswahl ab.
-Die vollständige Abnahme mit Seed und Lieferung steht im
+Der historische Stackdurchlauf mit Seed und Lieferung steht im
 link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/pruefprotokolle/2026-09-30-registry-stack.md[Registry-Prüfprotokoll].
+Der ergänzende
+link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/pruefprotokolle/2026-09-30-sodata-0.1.11.md[Prüfnachweis für Sodata 0.1.11]
+dokumentiert den isolierten Native-Image-Test einschliesslich Explore und die CI-Prüfungen.

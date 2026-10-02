@@ -4,6 +4,19 @@
 
 == Änderungen in den laufenden Stack übernehmen
 
+Identifier-Änderungen sind administrative Migrationen des angenommenen
+Gesamtstands. Zusätzlich zu Ordnernamen, Datenblatt-TID und `identifier` in
+Themenrepo und Pilotdaten müssen beide Gesamt-XTF, Ressourcen- und
+Distributionsadressen sowie die Downloadnamen konsistent umgestellt werden.
+Vorher Jenkins pausieren, laufende Builds abwarten und Manifest, XTF, RDF und
+betroffene Downloads sichern. In einer isolierten Arbeitskopie die
+Eingangs-XTF vor ihrer Validierung migrieren und die vorhandenen Datenexporte
+bytegleich unter neuen Namen bereitstellen. Anschliessend den regulären
+GRETL-Publikationsablauf mit seiner Manifestprüfung verwenden, erneut seeden
+und das Portal neu laden. Alte Downloadobjekte erst nach vollständiger
+Abnahme und ausdrücklicher Freigabe löschen. Historische Releases bleiben
+erhalten; eine Neuinitialisierung ist dafür nicht erforderlich.
+
 [cols="2,4",options="header"]
 |===
 |Änderung |Nötiger Schritt

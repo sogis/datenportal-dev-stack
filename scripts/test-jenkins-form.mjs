@@ -37,14 +37,20 @@ try {
   await csv.setInputFiles([]);
   assert(await issue.isHidden());
   assert.equal(await issue.inputValue(), '');
-  await page.goto(base + '/gretl-datenportal/start?organization=agi&dataset=ch.so.agi.av_nachfuehrungsstatistik.personal');
+  await page.goto(base + '/gretl-datenportal/start?organization=agi&dataset=ch.so.av_nachfuehrungsstatistik.personal');
+  const agiTopics = await page.locator('[name="DATASET"] option').evaluateAll(options => options.map(option => option.value).filter(Boolean));
+  assert.deepEqual(agiTopics.sort(), ['ch.so.av_nachfuehrungsstatistik.personal', 'ch.so.av_nachfuehrungsstatistik.umsatz']);
+  assert.equal(await page.locator('[name="DATASET"]').inputValue(), 'ch.so.av_nachfuehrungsstatistik.personal');
+  assert.equal(await page.locator('[name="SERIES_ID"]').count(), 0);
+  await page.goto(base + '/gretl-datenportal/start?organization=agi&dataset=ch.so.av_nachfuehrungsstatistik.umsatz');
+  assert.equal(await page.locator('[name="DATASET"]').inputValue(), 'ch.so.av_nachfuehrungsstatistik.umsatz');
   assert.equal(await page.locator('[name="SERIES_ID"]').count(), 0);
   const generated = await (await page.request.get(base + '/job/gretl-datenportal-statistikdienst/config.xml')).text();
   const pipeline = await page.evaluate(xml => new DOMParser().parseFromString(xml, 'application/xml').querySelector('script')?.textContent || '', generated);
   assert(pipeline.includes("lock(resource: 'datenportal-topic-repository')"));
   assert(pipeline.indexOf('lock(resource:') < pipeline.indexOf('prepareDatenportalWorkspace()'));
   assert(generated.includes('PUBLICATION_MODE') && generated.includes('RELOAD_PORTAL'));
-  console.log('PASS: delivery/repository modes, CSV edition requirement, clearing uploads, standalone topic');
+  console.log('PASS: delivery/repository modes, CSV edition requirement, clearing uploads, canonical AGI identifiers');
 } finally {
   await browser.close();
 }

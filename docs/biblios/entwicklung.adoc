@@ -66,6 +66,13 @@ Dabei werden nur das Datenportal-Plugin und sein entpacktes Verzeichnis gezielt
 ersetzt. Eine Volume-Löschung gehört nicht zum Updateablauf. Ein manueller
 Image-Build allein ersetzt kein bereits im Jenkins-Volume installiertes Plugin.
 
+Die Jenkins-Anwendung trägt den Anzeigenamen «Datenportal Jobs». Dieser Wert
+ist sowohl in der gemounteten Jenkins-Dev-JCasC als auch in der
+Registry-JCasC dieses Stacks gesetzt. Änderungen am Anzeigenamen werden
+beim nächsten Jenkins-Start übernommen. Die Jobübersicht mit Filtern und
+Seitennavigation ist im Plugin dokumentiert:
+link:https://codeberg.org/edigonzales/datenportal-jenkins-gretl-plugin/src/branch/main/docs/biblios/entwicklung/startformular-und-berechtigungen.adoc[RootAction und Startformular].
+
 APISIX-Routen werden dateigesteuert eingelesen und bei Änderungen automatisch
 aktualisiert. Nach einer Änderung an der Laufzeitkonfiguration `config.yaml`
 den Dienst neu erzeugen:

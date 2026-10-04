@@ -22,7 +22,7 @@ unclassified:
     declaredResources:
       - name: datenportal-topic-repository
   gretlDatenportalJobs:
-    displayName: GRETL Datenportal Jobs
+    displayName: Datenportal Jobs
     urlName: gretl-datenportal
     topicRepositoryMode: managed-git
     topicRepositoryUrl: '${THEMEN_REPO_URL}'

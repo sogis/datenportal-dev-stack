@@ -20,6 +20,7 @@ class RegistryStartTest(unittest.TestCase):
         (self.root / 'bin').mkdir()
         shutil.copy(ROOT / 'scripts/up.sh', self.root / 'scripts/up.sh')
         self.executable('scripts/init.sh', '#!/bin/sh\necho init >> "$TRACE"\n')
+        self.executable('scripts/bootstrap.sh', '#!/bin/sh\necho "bootstrap $*" >> "$TRACE"\n')
         self.executable('bin/docker', '''#!/bin/sh
 echo "$*" >> "$TRACE"
 case "$*" in
@@ -54,7 +55,8 @@ esac
         for line in actions:
             self.assertTrue(line.startswith('compose -f compose.yaml -f compose.registry.yaml '), line)
         self.assertNotIn(' build ', trace)
-        self.assertIn('docker compose -f compose.yaml -f compose.registry.yaml up', result.stdout)
+        self.assertIn('bootstrap -f compose.yaml -f compose.registry.yaml', trace)
+        self.assertIn('Portal (sodata):', result.stdout)
 
     def test_all_local_flags_rejected_before_init(self):
         for flag in ('--local-editor', '--local-jenkins', '--local-sodata', '--local-docs'):
@@ -62,6 +64,13 @@ esac
                 result, trace = self.start(flag)
                 self.assertEqual(result.returncode, 2)
                 self.assertEqual(trace, '')
+
+    def test_infrastructure_mode_does_not_bootstrap(self):
+        result, trace = self.start('--infrastructure-only')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('bootstrap ', trace)
+        self.assertIn('Basisdienste bereit', result.stdout)
+        self.assertNotIn('Portal (sodata):', result.stdout)
 
     def test_old_or_unknown_compose_rejected_before_init(self):
         for version in ('2.24.3', '2.23.9', '1.29.2', 'unknown'):

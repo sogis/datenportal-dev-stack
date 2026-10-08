@@ -15,10 +15,10 @@ link:https://github.com/sogis/datenportal-themenrepo/blob/main/docs/biblios/lief
   gelten die Defaults der interpolierten `${VARIABLE:-default}`-Ausdrücke.
   Leere Werte verwenden bei `:-` ebenfalls den Default. Feste YAML-Werte
   werden durch gleichnamige `.env`-Einträge nicht verändert.
-* `up.sh`: lädt `.env` als Shellcode mit Export. Es stellt danach nur die zuvor
-  gesetzten Shellwerte von `DATENPORTAL_JENKINS_IMAGE`, `DATENPORTAL_SODATA_IMAGE`,
-  `GARAGE_PUBLIC_PORT`, `PLUGIN_SOURCE`, `PLUGIN_VERSION` und
-  `PLUGIN_REPOSITORY_URL` wieder her.
+* `up.sh`: lädt `.env` als Shellcode mit Export. Zuvor gesetzte Shellwerte
+  für Images, beide Garage-Ports, S3-Publikationsparameter, Manifestadresse,
+  Reload-URL/-Token, Themenrepo-URL/-Branch, Plugin-Auswahl und Docs-Buildparameter
+  haben Vorrang.
   Für andere Variablen überschreibt eine Zuweisung in `.env` den Shellwert;
   fehlt sie dort, bleibt der geerbte Wert erhalten. Deshalb lokale Overrides
   bevorzugt in der ignorierten `.env` pflegen. Keine beliebigen fremden
@@ -63,7 +63,7 @@ Compose-/Startaufrufs gemäss obiger Priorität. Wirksamkeit: Container neu erze
 |`DATENPORTAL_S3_PUBLISH` |`true` |Nur Jenkins: `ORG_GRADLE_PROJECT_s3Publish`; `false` erzeugt Vorschauen ohne Upload/Git/Reload. |nein
 |`DATENPORTAL_PUBLICATION_MANIFEST_URL` |`http://localhost:<GARAGE_PUBLIC_PORT>/ch.so.daten/current.json` |Nur Jenkins: `ORG_GRADLE_PROJECT_publicationManifestUrl`, Eingangsverweis im gemeinsamen APISIX/Jenkins-Netzwerkraum. Ändert weder Editorquelle noch Portalquelle. |nein
 |`DATENPORTAL_PORTAL_RELOAD_URL` |`http://sodata:8080/admin/catalog/reload` |Nur Jenkins: `ORG_GRADLE_PROJECT_portalReloadUrl`, geschützter Portal-POST-Endpunkt im Compose-Netz. Kein Portalstart dadurch. |nein
-|`DATENPORTAL_PORTAL_RELOAD_TOKEN` |leer; bei angefordertem publizierendem Reload erforderlich |Jenkins `ORG_GRADLE_PROJECT_portalReloadToken` und Portal `DATENPORTAL_ADMIN_RELOAD_TOKEN` aus demselben Wert. |ja
+|`DATENPORTAL_PORTAL_RELOAD_TOKEN` |`init.sh` erzeugt einen fehlenden lokalen Wert; für vollständigen Start erforderlich |Jenkins `ORG_GRADLE_PROJECT_portalReloadToken` und Portal `DATENPORTAL_ADMIN_RELOAD_TOKEN` aus demselben Wert. |ja
 |===
 
 Die `DATENPORTAL_S3_*`-Overrides ändern nur den Jenkins-Uploadweg. Garage,
@@ -77,7 +77,7 @@ Wechsel des Storage-Backends.
 
 Mit `--registry-only` lädt `up.sh` zusätzlich `compose.registry.yaml`.
 Es ersetzt alle Jenkins-Mounts durch Jenkins-Home und die Test-JCasC aus
-`services/jenkins/jenkins-registry.yaml`; keine Schwester-Repositories nötig.
+`services/jenkins/jenkins-stack.yaml`; keine Schwester-Repositories nötig.
 Die folgenden Abweichungen gelten gegenüber der Basis-Compose-Datei:
 
 [cols="2,4",options="header"]
@@ -100,10 +100,10 @@ Direkte Compose-Aufrufe benötigen `-f compose.yaml -f compose.registry.yaml`.
 |===
 |Festlegung |Bedeutung
 |`JENKINS_RUNTIME_MODE=dev` |Laufzeitprüfungen; wählt keine JCasC aus.
-|`CASC_JENKINS_CONFIG=/opt/datenportal/casc/jenkins-local.yaml` |Lokale JCasC, read-only aus `../datenportal-jenkins-dev/casc/jenkins.yaml` gemountet.
+|`CASC_JENKINS_CONFIG=/opt/datenportal/casc/jenkins-stack.yaml` |Stack-eigene lokale Test-JCasC aus `services/jenkins/jenkins-stack.yaml`, in beiden Repository-Modi. Kein Jenkins-Quellcheckout für Registry-Images nötig.
 |`THEMEN_REPO_MODE=working-tree`, `THEMEN_REPO_URL=""`, `THEMEN_REPO_PATH=/workspace/themenrepo` |Read-only Mount aus `../datenportal-themenrepo`; Seed-Snapshot und pro Build eigene Kopie. Keine Git-Schreiboperationen.
 |`ORG_GRADLE_PROJECT_catalogDownloadBase` |`http://localhost:<GARAGE_PUBLIC_PORT>/ch.so.daten`; öffentlich erreichbare Distributionsbasis. Kein eigener `.env`-Override dieses Namens.
-|Git-Freigabe |Lokale JCasC: Default aus; Compose reicht keine Git-Schreibfreigabe durch. Selbst mit Freigabe bleibt `working-tree` ohne Git-Schreiben.
+|Git-Freigabe |Beide Compose-Modi setzen Plugin- und Gradle-Git-Schreibfreigabe ausdrücklich auf `false`.
 |Garage-Bucket / Region |`ch.so.daten` / `garage` für Garage, Browser und Hilfsservices.
 |Infrastrukturimages |APISIX `apache/apisix:3.14.1-debian` (dateigesteuerter Data Plane ohne etcd/Admin-API/TLS), Garage `dxflrs/garage:v2.3.0`, rclone `rclone/rclone:1.75.1`, AWS-Hilfe/Initialisierung `amazon/aws-cli:2.36.35`.
 |Editorimage |Basis: `sogis/datenportal-datenblatt-editor:0.1.4`; lokales Override: `datenblatt-editor:local`, Buildquelle `../datenportal-datenblatt-editor`.
@@ -124,7 +124,7 @@ ausgewählte Repository-Metadaten, nicht den letzten Publikationsstand.
 == Start- und Buildskripte
 
 Die Optionen `--local-editor`, `--local-jenkins`, `--local-sodata`,
-`--registry-only`, `--help` und `-h` von `up.sh` stehen unter
+`--local-docs`, `--registry-only`, `--infrastructure-only`, `--help` und `-h` von `up.sh` stehen unter
 xref:start.adoc[Start]. `init.sh`, `down.sh`, `build-jenkins-local.sh` und
 `build-sodata-local.sh` besitzen keine eigene öffentliche Optionsauswahl.
 Folgende Variablen des Build-Wrappers werden bei jedem Build neu ausgewertet;
@@ -155,6 +155,13 @@ Defaults und Verbraucher bleiben in der Jenkins-Referenz: `PLUGIN_GROUP`,
 beschriebenen Java-/Extension-/Modell-Bundle-Einstellungen. Diese verändern
 keine anderen Stackdienste. Maven-Registry-Credentials gehören in externe
 Maven-Konfiguration, nicht in versionierte Parameterdateien.
+
+Der gemeinsame `bootstrap.sh`-Helfer akzeptiert `-f DATEI` mehrfach,
+`--timeout SEKUNDEN` (Default 1800, Bereich 1–7200) und `--check-only`.
+Er liest die effektive Compose-Konfiguration und vergleicht sie mit der
+laufenden Jenkins-Umgebung, ohne diese Secret-haltigen Inhalte auszugeben.
+`DATENPORTAL_BOOTSTRAP_USER` und `DATENPORTAL_BOOTSTRAP_PASSWORD` in der
+Prozessumgebung überschreiben das lokale Testadministrationskonto.
 
 == Temporäre Dateien
 

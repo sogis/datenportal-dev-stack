@@ -4,11 +4,14 @@
 
 == Dienste, Adressen und Seeder
 
-Nach xref:start.adoc[dem lokalen Start] Jenkins unter
-`http://localhost:8081/jenkins/` öffnen; die lokale JCasC stellt `admin` / `admin`
-bereit. Das Plugin erzeugt `gretl-datenportal-seed` automatisch. Diesen Job
-starten und einen erfolgreichen Abschluss sowie die erzeugten Organisationsjobs
-prüfen. Seine periodische Ausführung ersetzt diese Erstprüfung nicht.
+xref:start.adoc[Der lokale Start] führt den Seed-Job `gretl-datenportal-seed`
+aus, wartet auf dessen erfolgreichen Abschluss und erzeugt bei einem frischen
+lokalen Garage-Bestand den ersten Publikationsstand. Anschliessend startet und
+prüft er das Portal. Jenkins unter `http://localhost:8081/jenkins/` öffnen;
+die Stack-JCasC stellt die bisherigen lokalen Testkonten bereit.
+Die ausgegebene Seed-Buildadresse und die Organisationsjobs erlauben die
+Nachprüfung. Jeder erneute `up.sh`-Aufruf seedet neu; der periodische Timer
+bleibt zusätzlich aktiv.
 
 Im Stack kopiert der Seeder den lokalen Arbeitsbaum einschliesslich
 uncommitteter Änderungen. Ein Lieferjob verwendet eine eigene Kopie des
@@ -31,7 +34,17 @@ APISIX teilt den Netzwerkraum von Jenkins: dort bezeichnet `localhost` denselben
 Jenkins-Servicenamen. Manifest-Leseadresse und öffentliche Downloadbasis bleiben
 getrennt konfiguriert.
 
-== Ersten Gesamtstand administrativ erzeugen
+== Expliziter administrativer Initialaufbau und Migration
+
+Im normalen lokalen Start übernimmt `up.sh` diesen Schritt automatisch.
+Ohne technische Lieferdaten entsteht `catalog: null` mit gültiger DuckDB;
+CSV-Beispieldaten werden nicht automatisch angeliefert.
+
+Für die bewusste Übernahme eines bisherigen Katalogs oder ein abweichendes
+Publikationsziel zuerst `./scripts/up.sh --infrastructure-only` ausführen
+(Registry-Variante zusätzlich `--registry-only`). Den Seed danach als
+Administrator erfolgreich ausführen. Im folgenden Block stammen die Quellen
+aus dem erfolgreichen Seed-Checkout, passend zu beiden Repository-Modi.
 
 Dies ist ein einmaliger administrativer Schritt, keine dritte Formularvariante.
 Standardjobs benötigen bereits eine lesbare `current.json`. Fehlt sie, brechen
@@ -47,7 +60,7 @@ sie ab; sie wechseln nicht still auf Git oder einen leeren Bestand.
 docker compose exec -T jenkins bash -s <<'SH'
 set -euo pipefail
 publication_init_dir=$(mktemp -d /var/jenkins_home/datenportal-initialize.XXXXXX)
-tar -C /workspace/themenrepo \
+tar -C /var/jenkins_home/gretl-datenportal/topic-repo \
   --exclude=.git --exclude=.gradle --exclude=build --exclude=.DS_Store \
   -cf - . | tar -C "$publication_init_dir" -xf -
 cd "$publication_init_dir"
@@ -234,18 +247,20 @@ veröffentlicht; `up.sh` erzeugt APISIX nach einer Jenkins-Neuerstellung erneut.
 Port 8080 ist wegen Jenkins in diesem Netzwerkraum nicht als
 `GARAGE_PUBLIC_PORT` zulässig.
 
-Vor der ersten Veröffentlichung fehlt `current.json`; `up.sh` startet Sodata
-deshalb nicht. Nach dem administrativen Initialaufbau den von `up.sh` ausgegebenen
-Compose-Befehl verwenden und prüfen:
+`up.sh` erzeugt bei HTTP 404 den lokalen Erstbestand und startet danach
+Sodata. Nach einem expliziten administrativen Initialaufbau kann
+`scripts/bootstrap.sh` mit denselben `-f`-Dateien den Bestand prüfen, erneut
+seeden und das Portal starten. Den internen Health zusätzlich prüfen:
 
 [source,bash]
 ----
 docker compose exec -T jenkins curl -fS http://sodata:8080/actuator/health
 ----
 
-Für optionalen Reload in der ignorierten `.env` setzen:
-
-* `DATENPORTAL_PORTAL_RELOAD_TOKEN`: ein lokal erzeugtes Secret, ohne es zu committen.
+`init.sh` erzeugt einen fehlenden `DATENPORTAL_PORTAL_RELOAD_TOKEN` in der
+ignorierten `.env`. Vorhandene Werte bleiben erhalten. Der normale Start prüft
+damit den geschützten Portalstatus; ein Lieferjob kann Reload weiterhin optional
+anfordern. Ein bewusst extern bereitgestellter Token hat beim Start Vorrang.
 
 Jenkins und Portal lesen denselben Wert (`ORG_GRADLE_PROJECT_portalReloadToken`
 beziehungsweise `DATENPORTAL_ADMIN_RELOAD_TOKEN`). Der Reload-Endpunkt ist im

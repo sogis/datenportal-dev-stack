@@ -122,6 +122,8 @@ replay_pid*
 # Lokale Zugangsdaten und generierte Konfiguration des Dev-Stacks
 /.env
 /services/garage/garage.toml
+/.runtime/
+__pycache__/
 
 # Einzeln heruntergeladene Dateien für die Registry-Demonstration.
 demo-inputs/

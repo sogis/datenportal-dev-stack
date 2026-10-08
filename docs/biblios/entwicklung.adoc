@@ -211,6 +211,8 @@ eigenen Container, sein Netzwerk und sein Testimage.
 
 [source,bash]
 ----
+python3 scripts/test-bootstrap.py
+python3 scripts/test-bootstrap-live.py
 python3 scripts/test-registry-start.py
 python3 scripts/test-docs-start.py
 ----
@@ -225,3 +227,14 @@ link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/pruefp
 Der ergänzende
 link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/pruefprotokolle/2026-09-30-sodata-0.1.11.md[Prüfnachweis für Sodata 0.1.11]
 dokumentiert den isolierten Native-Image-Test einschliesslich Explore und die CI-Prüfungen.
+
+`test-bootstrap.py` prüft die Startzustände mit isolierten Fixtures.
+
+Der link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/pruefprotokolle/2026-10-08-automatischer-stackstart.md[Prüfnachweis vom 8. Oktober 2026]
+enthält die tatsächlich verwendeten Quellen, Images und Ergebnisse.
+
+`test-bootstrap-live.py` erzeugt eigene temporäre Compose-Projekte und freie
+Ports: einmal mit read-only lokalem Themenrepo, einmal Registry-only ohne
+Schwester-Checkouts. Beide Varianten prüfen Erstpublikation, erneuten Seed,
+erhaltene Secrets/Release und die bestehenden Smoke-Tests. Nur die eigenen
+Testvolumes werden im Cleanup entfernt; Logs bleiben im ausgegebenen Verzeichnis.

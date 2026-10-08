@@ -89,13 +89,15 @@ services:
       - "${GARAGE_PUBLIC_PORT:-8081}:${GARAGE_PUBLIC_PORT:-8081}"
     environment:
       JENKINS_RUNTIME_MODE: dev
-      CASC_JENKINS_CONFIG: /opt/datenportal/casc/jenkins-local.yaml
+      CASC_JENKINS_CONFIG: /opt/datenportal/casc/jenkins-stack.yaml
       JENKINS_URL: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/jenkins/
       JENKINS_OPTS: --prefix=/jenkins
       THEMEN_REPO_MODE: working-tree
       THEMEN_REPO_URL: ""
       THEMEN_REPO_PATH: /workspace/themenrepo
       THEMEN_REPO_BRANCH: ${THEMEN_REPO_BRANCH:-main}
+      THEMEN_REPO_WRITE_BACK_ENABLED: "false"
+      ORG_GRADLE_PROJECT_gitWriteBack: "false"
       ORG_GRADLE_PROJECT_s3Publish: ${DATENPORTAL_S3_PUBLISH:-true}
       ORG_GRADLE_PROJECT_publicationManifestUrl: ${DATENPORTAL_PUBLICATION_MANIFEST_URL:-http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten/current.json}
       ORG_GRADLE_PROJECT_catalogDownloadBase: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten
@@ -109,7 +111,7 @@ services:
       ORG_GRADLE_PROJECT_s3Acl: ${DATENPORTAL_S3_ACL:-private}
     volumes:
       - jenkins-home:/var/jenkins_home
-      - ../datenportal-jenkins-dev/casc/jenkins.yaml:/opt/datenportal/casc/jenkins-local.yaml:ro
+      - ./services/jenkins/jenkins-stack.yaml:/opt/datenportal/casc/jenkins-stack.yaml:ro
       - ../datenportal-themenrepo:/workspace/themenrepo:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/jenkins/login >/dev/null"]

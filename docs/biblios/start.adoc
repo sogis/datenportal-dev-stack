@@ -17,7 +17,7 @@ Neue `.env`-Dateien enthalten Jenkins `0.1.0-3`, Sodata `0.1.11` und
 Dokumentation `0.1.18`. Bei vorhandenen Dateien die Image-Werte gezielt
 aktualisieren, Secrets erhalten. Der Registry-Modus baut keine Images und ist
 mit keiner lokalen Buildoption kombinierbar. Direkte Befehle immer mit beiden
-Compose-Dateien ausführen, insbesondere den späteren Sodata-Start:
+Compose-Dateien ausführen:
 
 [source,bash]
 ----
@@ -26,8 +26,9 @@ docker compose -f compose.yaml -f compose.registry.yaml up -d --wait --wait-time
 docker compose -f compose.yaml -f compose.registry.yaml down
 ----
 
-Sodata erst bei gültigem Publikationsmanifest starten. Seed, Erstinitialisierung
-und Testlieferung ohne weitere Checkouts stehen in der
+Der Start wartet auf einen erfolgreichen Seed, erzeugt den Erstbestand bei
+HTTP 404 im lokalen Garage-Bucket und startet Sodata automatisch. Die
+Testlieferung ohne weitere Checkouts steht in der
 link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/docs/biblios/lokal-kennenlernen.adoc[Betriebsdoku].
 
 === Sodata in einer bestehenden Registry-Installation aktualisieren
@@ -55,7 +56,7 @@ sind relativ; lokale Benutzerpfade gehören nicht in die Konfiguration.
 |===
 |Repository |Benötigt für
 |`../datenportal-themenrepo` |Entwicklungsmodus ohne `--registry-only`: read-only Quelle für Jenkins; ausserdem Buildvertrag und Initialisierung.
-|`../datenportal-jenkins-dev` |Entwicklungsmodus ohne `--registry-only`: gemountete lokale JCasC. Bei lokalem Jenkins-Build auch Dockerfile, Offline-Bundle und Buildskripte.
+|`../datenportal-jenkins-dev` |Nur lokaler Jenkins-Build: Dockerfile, Offline-Bundle und Buildskripte. Die Test-JCasC für beide Stack-Modi liegt im Dev-Stack.
 |`../datenportal-jenkins-gretl-plugin` |Lokalen Plugin-Build. Entfällt bei ausdrücklich gewähltem Maven-HPI oder vorhandenem HPI.
 |`../datenportal-datenblatt-editor` |`--local-editor` und Formular-Browsertest.
 |`../datenportal-pilot-daten` |Deklarierte CSV-/XTF-Fixtures für Liefer- und Integrationstests; nicht automatisch publiziert.
@@ -96,12 +97,21 @@ docker compose ps -a
 Quellen, initialisiert Garage und den öffentlichen Leseschlüssel und startet
 die Dienste. Das aktuelle Datenportal-Plugin wird aus dem Image ins persistente
 Jenkins-Volume kopiert; Jenkins wird neu erzeugt. Jobs und Historien bleiben
-erhalten. Vor der ersten Veröffentlichung prüft `up.sh` die öffentliche
-`current.json`: Bei HTTP 404 bleibt Sodata gestoppt und der nötige Startbefehl
-wird ausgegeben. Die nächsten Schritte sind
-xref:inbetriebnahme.adoc[Seeder und Initialaufbau].
+erhalten. Danach führt der gemeinsame Helfer `scripts/bootstrap.sh` einen
+Seed aus und wartet auf Erfolg. Nur HTTP 404 erlaubt den automatischen
+Initialaufbau im lokalen Garage-Bucket ohne vorhandene Publikationsartefakte.
+Fehlt ein Verweis bei bereits vorhandenen versionierten Datenblättern, wird
+der Start zur Bestandsklärung abgebrochen. Der vorhandene Root-Task läuft in einer
+beschreibbaren Kopie des Seed-Checkouts, bei pausiertem Jenkins und ohne
+Git-Rückschreiben. Erst bei gültigem Manifest samt erreichbaren XTF-/DuckDB-
+Artefakten startet Sodata. Health und geschützter Portalstatus werden geprüft.
 
-`init.sh` erzeugt einmalig `.env` mit Schreib- und Browser-Schlüssel sowie
+Für den normalen Entwicklungsstart mit Registry-Images reichen dieser Checkout
+und `../datenportal-themenrepo` sowie Docker, Bash, OpenSSL, curl und Python 3:
+`./scripts/up.sh`. Weitere Quellen und Buildwerkzeuge sind nur für die
+gewählten `--local-*`-Builds erforderlich.
+
+`init.sh` erzeugt einmalig `.env` mit Schreib-, Browser- und Reload-Schlüssel sowie
 `services/garage/garage.toml` mit Garage-Secrets. Beide Dateien sind ignoriert
 und erhalten Dateimodus 600. Vorhandene Dateien werden nicht durch neue
 Beispieldefaults ersetzt. Fehlende Browser-Schlüssel können als Paar ergänzt
@@ -128,6 +138,7 @@ Dienste. Deren konfigurierte Healthchecks müssen erfolgreich sein.
 |`./scripts/up.sh --local-sodata` |Portal-Image neu aus `../datenportal-sodata` bauen und als Container verwenden.
 |`./scripts/up.sh --local-editor --local-jenkins --local-sodata` |Empfohlener Weg für den aktuellen Entwicklungsstand aller lokalen Komponenten.
 |`./scripts/up.sh --registry-only` |Versionierte Registry-Images ohne Schwester-Checkouts; eigene Test-JCasC und Git-Abruf im Jenkins-Container. Mit allen `--local-*`-Optionen unzulässig.
+|`./scripts/up.sh --infrastructure-only` |Basisdienste für explizite Migration/Administration starten; Seed, Erstpublikation und Portalstart separat.
 |`./scripts/up.sh --help` |Optionen ausgeben, nichts starten.
 |===
 
@@ -141,10 +152,21 @@ Weg, den aktuellen Checkout zu testen. Die Standardtags und Buildparameter
 stehen in xref:konfiguration.adoc[Konfiguration].
 
 Das Portal wird nur gestartet, wenn `current.json` öffentlich mit HTTP 200
-erreichbar ist. Danach wartet `up.sh` auf den Container-Healthcheck. Vor der
-Erstpublikation bleibt der Container gestoppt; nach der administrativen
-Initialpublikation wird der von `up.sh` ausgegebene Compose-Befehl verwendet.
+und gültigen Release-Dateinamen einschliesslich DuckDB erreichbar ist. Fehlende
+Artefakte und HTTP-/Validierungsfehler brechen den Start ab. Ein Altmanifest ohne
+DuckDB benötigt eine reguläre Publikation, keine Neuinitialisierung.
 Die lokale Restart-Policy ist auf drei Fehlversuche begrenzt.
+
+`scripts/bootstrap.sh [-f DATEI ...] [--timeout SEKUNDEN]` vervollständigt bereits
+laufende Basisdienste; das Zeitlimit beträgt standardmässig 1800 Sekunden.
+`--check-only` prüft Manifest und Portal lesend, ohne Seed, Upload oder
+Container-Neuerstellung. Der Helfer verwendet die lokale Testadministration;
+abweichende Zugangsdaten können über `DATENPORTAL_BOOTSTRAP_USER` und
+`DATENPORTAL_BOOTSTRAP_PASSWORD` in der Umgebung bereitgestellt werden.
+Automatische Erstpublikation ist auf Garage, `ch.so.daten` und aktiviertes
+S3-Schreiben begrenzt. Für Migration oder abweichende Ziele zunächst
+`up.sh --infrastructure-only` und dann den expliziten administrativen Ablauf
+unter xref:inbetriebnahme.adoc[Inbetriebnahme] verwenden.
 
 `compose.yaml` enthält keine Build-Definition. `docker compose build` allein
 baut daher keine Komponenten. Der lokale Editor verwendet

@@ -19,6 +19,7 @@ class DocsStartTest(unittest.TestCase):
         (self.root / 'bin').mkdir()
         shutil.copy(ROOT / 'scripts/up.sh', self.root / 'scripts/up.sh')
         self.executable('scripts/init.sh', '#!/bin/sh\nexit 0\n')
+        self.executable('scripts/bootstrap.sh', '#!/bin/sh\necho "bootstrap $*" >> "$TRACE"\n')
         self.executable('scripts/build-docs-local.sh', '#!/bin/sh\necho "docs-build $DOCS_REPO_DIR" >> "$TRACE"\nexit "${BUILD_FAIL:-0}"\n')
         self.executable('bin/docker', '''#!/bin/sh
 echo "$*" >> "$TRACE"
@@ -53,6 +54,7 @@ exit 0
         self.assertIn('-f compose.docs-local.yaml up', trace)
         self.assertIn('dokumentation datenblatt-editor', trace)
         self.assertIn('/dokumentation/', result.stdout)
+        self.assertIn('bootstrap -f compose.yaml -f compose.docs-local.yaml', trace)
         self.assertNotIn('image inspect docs', trace)
 
     def test_failed_build_never_starts_containers(self):

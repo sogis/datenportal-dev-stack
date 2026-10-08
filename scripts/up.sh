@@ -11,6 +11,7 @@ local_jenkins=false
 local_sodata=false
 local_docs=false
 registry_only=false
+infrastructure_only=false
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
@@ -30,18 +31,22 @@ while [[ "$#" -gt 0 ]]; do
     --registry-only)
       registry_only=true
       ;;
+    --infrastructure-only)
+      infrastructure_only=true
+      ;;
     --help|-h)
-      echo "Usage: ./scripts/up.sh [--local-editor] [--local-jenkins] [--local-sodata] [--local-docs] [--registry-only]"
+      echo "Usage: ./scripts/up.sh [--local-editor] [--local-jenkins] [--local-sodata] [--local-docs] [--registry-only] [--infrastructure-only]"
       echo "  --local-editor   build the editor from ../datenportal-datenblatt-editor"
       echo "  --local-jenkins  build datenportal-jenkins from ../datenportal-jenkins-dev"
       echo "  --local-sodata   build datenportal-sodata from ../datenportal-sodata"
       echo "  --local-docs     build documentation from local working trees, then its image"
       echo "  --registry-only  use versioned images and remote topics without sibling checkouts (Compose >= 2.24.4)"
+      echo "  --infrastructure-only  start base services for explicit migration/administrative setup"
       exit 0
       ;;
     *)
       echo "Unknown option: $1" >&2
-      echo "Usage: ./scripts/up.sh [--local-editor] [--local-jenkins] [--local-sodata] [--local-docs] [--registry-only]" >&2
+      echo "Usage: ./scripts/up.sh [--local-editor] [--local-jenkins] [--local-sodata] [--local-docs] [--registry-only] [--infrastructure-only]" >&2
       exit 2
       ;;
   esac
@@ -80,8 +85,11 @@ environment_plugin_version_set="${PLUGIN_VERSION+x}"
 environment_plugin_repository_url="${PLUGIN_REPOSITORY_URL-}"
 environment_plugin_repository_url_set="${PLUGIN_REPOSITORY_URL+x}"
 
-# Preserve docs settings from the caller across init.sh and .env loading.
-docs_environment_names=(DATENPORTAL_DOCS_IMAGE DOCS_REPO_DIR THOTH_REPO_DIR THOTH_JAR PYTHON JAVA_HOME)
+# Preserve caller settings across init.sh and .env loading, as Compose does.
+docs_environment_names=(DATENPORTAL_DOCS_IMAGE DOCS_REPO_DIR THOTH_REPO_DIR THOTH_JAR PYTHON JAVA_HOME
+  GARAGE_S3_PORT DATENPORTAL_PORTAL_RELOAD_TOKEN DATENPORTAL_S3_ENDPOINT DATENPORTAL_S3_REGION
+  DATENPORTAL_S3_BUCKET DATENPORTAL_S3_ACL DATENPORTAL_S3_PUBLISH DATENPORTAL_PUBLICATION_MANIFEST_URL
+  DATENPORTAL_PORTAL_RELOAD_URL THEMEN_REPO_URL THEMEN_REPO_BRANCH)
 docs_environment_set=()
 docs_environment_values=()
 for name in "${docs_environment_names[@]}"; do
@@ -303,40 +311,6 @@ ensure_public_browser_key() {
   fi
 }
 
-publication_manifest_status() {
-  local manifest_url="http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten/current.json"
-  local status
-
-  if ! status="$(curl \
-    --silent \
-    --show-error \
-    --output /dev/null \
-    --write-out '%{http_code}' \
-    --max-time 5 \
-    "${manifest_url}")"; then
-    echo "current.json konnte nicht geprüft werden: ${manifest_url}" >&2
-    return 1
-  fi
-
-  printf '%s' "${status}"
-}
-
-stop_existing_sodata() {
-  if [[ -n "$(docker compose "${compose_files[@]}" ps -aq sodata)" ]]; then
-    docker compose "${compose_files[@]}" stop sodata >/dev/null
-  fi
-}
-
-print_sodata_start_command() {
-  local command="docker compose"
-  local compose_file
-
-  for compose_file in "${compose_files[@]}"; do
-    command+=" ${compose_file}"
-  done
-  echo "${command} up -d --wait --wait-timeout 120 sodata"
-}
-
 docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 garage
 docker compose "${compose_files[@]}" run --rm garage-init
 ensure_public_browser_key
@@ -352,32 +326,9 @@ fi
 # APISIX shares Jenkins' network namespace, which changes whenever Jenkins is recreated.
 docker compose "${compose_files[@]}" up -d --no-deps --force-recreate --wait --wait-timeout 120 downloads
 
-manifest_status="$(publication_manifest_status)"
-portal_started=false
-case "${manifest_status}" in
-  200)
-    if ! curl --fail --silent --show-error "http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten/current.json" |
-        python3 "$SCRIPT_DIR/testing/check-publication-manifest.py"; then
-      stop_existing_sodata
-      echo "Sodata benötigt ein gültiges Manifest mit DuckDB. Nach Update/Seed des Themenrepos einen regulären Publikationslauf ausführen."
-      echo "Keine Neuinitialisierung oder Volume-Löschung erforderlich. Danach:"
-      print_sodata_start_command
-      exit 1
-    fi
-    docker compose "${compose_files[@]}" up -d --wait --wait-timeout 120 sodata
-    portal_started=true
-    ;;
-  404)
-    stop_existing_sodata
-    echo "Hinweis: current.json fehlt noch. Sodata wurde deshalb nicht gestartet."
-    echo "Nach der administrativen Erstpublikation Sodata mit folgendem Befehl starten:"
-    print_sodata_start_command
-    ;;
-  *)
-    echo "current.json ist nicht verfügbar (HTTP ${manifest_status}); Sodata wurde nicht gestartet." >&2
-    exit 1
-    ;;
-esac
+if [[ "$infrastructure_only" == false ]]; then
+  ./scripts/bootstrap.sh "${compose_files[@]}"
+fi
 
 echo
 echo "Garage-S3 is ready."
@@ -386,8 +337,8 @@ echo "Public S3 browser: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.date
 echo "Dokumentation:    http://localhost:${GARAGE_PUBLIC_PORT:-8081}/dokumentation/"
 echo "Datenblatt-Editor: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/datenblatt-editor/"
 echo "Jenkins:          http://localhost:${GARAGE_PUBLIC_PORT:-8081}/anlieferung"
-if [[ "${portal_started}" == true ]]; then
+if [[ "$infrastructure_only" == false ]]; then
   echo "Portal (sodata):  http://localhost:${GARAGE_PUBLIC_PORT:-8081}/"
 else
-  echo "Portal (sodata):  wartet auf die Erstpublikation"
+  echo "Basisdienste bereit; Seed, Erstpublikation und Portalstart sind im Infrastrukturmodus separat."
 fi

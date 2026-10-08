@@ -14,7 +14,7 @@ Portalstatus prüfen.
 |Symptom / Zustand |Prüfung und Einordnung
 |Jenkins zeigt alte Felder oder Pipeline |Aktuelles HPI im Volume installieren, Jenkins neu erzeugen, Seeder erfolgreich ausführen. Ein Image-Build allein reicht nicht.
 |Repository-Änderung fehlt |Im Stack neuen Seed starten. Für Übernahme in Gesamt-XTF danach Repository-Abgleich ausführen. Der nächste Vorschaujob führt keinen alten Vorschaukandidaten weiter.
-|`current.json` fehlt |Vor erster Lieferung administrativ initialisieren. Bei vorher vorhandenem Bestand Ursache untersuchen; kein automatischer Bootstrap.
+|`current.json` fehlt |Normaler Start initialisiert nur bei bestätigtem HTTP 404 im lokalen Garage-Bucket. Bei vorhandenen versionierten Datenblättern verweigert der Bootstrap den Erstaufbau trotz 404. Verweis und Bestand zuerst klären; keinen Verweis löschen oder Blindstart durchführen.
 |Manifest beschädigt oder referenzierte XTF oder DuckDB fehlt |Ladefehler, kein Rückfall auf Git. Gewählte Manifestadresse, Dateinamen und HTTP-Status prüfen.
 |Katalog leer |`catalog: null` vor erster Datenlieferung oder alle Einträge fachlich zurückgehalten können gültig sein. Das Portal filtert nach Freigabe. Bei Null-Katalog ist sein XTF-Artefaktendpunkt 404 korrekt.
 |XTF-/CSV-Validierung fehlerhaft |Buildprotokolle und ausgewählte Modelle prüfen; erforderliche CSV-Modelle müssen vorhanden sein. IDs/Typwechsel nicht als normale Lieferung behandeln.
@@ -27,7 +27,7 @@ Portalstatus prüfen.
 |RDF-Upload oder Rücklesen fehlgeschlagen |`publication=accepted` kann bereits gelten. `opendata.status` getrennt prüfen: `not-published`, `accepted` nach geklärter verlorener Antwort oder `unknown` bei nicht klärbarem Ausgang. Kein Portal-Reload danach.
 |RDF enthält keine Datensätze |Bei `catalog: null` oder ohne `published`-Einträge beabsichtigt; bei Ausgaben muss auch die Serie freigegeben sein. Der leere Export ersetzt den bisherigen RDF-Bestand.
 |Reload fehlgeschlagen |S3 bleibt angenommen, Portal behält alten Snapshot/Index. URL aus Jenkins erreichbar? Token auf beiden Seiten gleich? Portal-Logs und geschützten Status prüfen.
-|Portal-Container startet wiederholt neu |`up.sh` sollte Sodata bei HTTP 404 nicht starten. Prüfe `current.json`, die Manifestreferenzen und die begrenzte Restart-Policy mit `docker compose ps -a` und `docker compose logs sodata`.
+|Portal-Container startet wiederholt neu |`up.sh` startet Sodata erst nach gültiger Erstpublikation oder Prüfung des vorhandenen Manifests. Prüfe `current.json`, die Manifestreferenzen und die begrenzte Restart-Policy mit `docker compose ps -a` und `docker compose logs sodata`.
 |Portal-Prüfungen im Smoke-Test werden übersprungen |`current.json` fehlt noch; die Portal-Checks laufen erst nach der ersten Publikation.
 |Editor zeigt eine alte Quelle |Gespeicherte Quelladresse im Dialog prüfen; diese hat Vorrang vor dem neuen Builddefault. Remote-Ladefehler werden angezeigt, kein stiller Rückfall auf einen alten Remote-Stand.
 |Erkunden zeigt andere/fehlende Tabellen |Manifestverweis `duckdb`, GRETL-Bericht und Portal-Reload prüfen. Bereits offene Playgrounds neu laden.
@@ -51,6 +51,29 @@ Tickets kopieren. Der öffentliche Portal-Health zeigt nur den Gesamtstatus;
 Details liefert der token-geschützte `/admin/catalog/status` gemäss
 link:https://codeberg.org/edigonzales/datenportal-sodata/src/branch/main/docs/operations.md[Portal-Betrieb].
 
+== Bootstrap-Lauf klären
+
+Der Start nennt Seed-Buildadresse, Initialisierungsarbeitskopie und Release-ID.
+`.runtime/<compose-projekt>/bootstrap.json` enthält die bestätigten
+Queue-/Buildkennungen und den Initialisierungsstand; `publication.log` enthält
+den Gradle-Lauf. Diese Dateien sind ignoriert und keine zweite Quelle des
+Publikationsbestands.
+
+Bei einem Host-Timeout kann `docker compose exec` im Container weiterlaufen.
+Die Volume-Sperre `/var/jenkins_home/datenportal-bootstrap.lock` und
+`<arbeitskopie>/exit-code` unterscheiden einen aktiven vom abgeschlossenen
+Lauf. Ein weiterer Bootstrap-Aufruf wartet auf einen aktiven Lauf und prüft
+danach Bericht und Manifest. Ein fehlender Abschlussnachweis oder eine unklare/
+teilweise angenommene Publikation führt zum Abbruch statt zu einem zweiten Upload.
+Eigenes Quiet Down wird erst nach bestätigtem Ende aufgehoben; eine vorher
+administrativ gesetzte Pause bleibt erhalten.
+
+Bei `seed_submitting` ohne bestätigte Kennung die Jenkins-Queue und Builds
+prüfen. Den lokalen Prüfstand erst nach geklärtem Ausgang korrigieren oder
+bereinigen. Keine laufenden Sperrdateien oder Datenvolumes entfernen.
+Ein eindeutig vor der Manifestumschaltung gescheiterter Lauf kann nach
+Korrektur der Eingaben mit einem neuen Aufruf gestartet werden.
+
 == Artefakte und Persistenz
 
 [cols="2,4",options="header"]
@@ -60,6 +83,7 @@ link:https://codeberg.org/edigonzales/datenportal-sodata/src/branch/main/docs/op
 |`jenkins-home` |Jobs, Historien, Plugins, Seeder-Snapshots, Buildkopien und Build-Artefakte; ausserdem bewusst angelegte Initialisierungskopien.
 |`build/publication/outputs/` in der jeweiligen Buildkopie |Gesamt-XTF, `opendata.rdf`, ausgewähltes Datenblatt unter `metadata/`, gegebenenfalls Datenexporte, Manifest, Diffs und `report.json`.
 |`build/publication/release/` |Versionierte Gesamt-XTF für den Upload; liegt neben `outputs/`, nicht darin. Protokolle liegen direkt unter `build/publication/`.
+|`.runtime/<compose-projekt>/` |Bootstrap-Prozesssperre, Kennungen und Gradle-Log; ignorierte lokale Diagnose, keine Publikationsquelle.
 |`.env`, `services/garage/garage.toml` |Lokale ignorierte Konfiguration und Secrets; gehören zur vorhandenen Garage-Instanz. Nicht mit Beispieldateien überschreiben.
 |Themenrepo-Quellmount |Read-only, bleibt bei Vorschau und S3-Publikation unverändert. Seeder-Snapshot ist ebenfalls keine fortgeschriebene Lieferbasis.
 |Editor-Browserprofil |Entwürfe und Quellenpräferenzen in IndexedDB, App-/Offline-Cache im Browser. Kein serverseitiges Backup oder automatischer Upload.
@@ -133,9 +157,9 @@ link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/docs/b
 
 Noch offen sind insbesondere der produktive opendata.swiss-Harvester-Anschluss, automatische Wiederaufnahme, ein vollständiges
 Recovery-Verfahren und Bereinigung alter XTF-Versionen. Das Portal wird
-inzwischen als Container in diesen Stack integriert; ein
-Kubernetes-Deploymentvertrag und ein Publish-Workflow für seine Images
-bestehen weiterhin nicht.
+als Container in diesen Stack integriert; Native-/JVM-Images werden im
+Portal-Repository gebaut und publiziert. Kubernetes-Manifeste gehören
+weiterhin in den zuständigen Deploymentrahmen.
 Einzel-XTF-Verarbeitung und parallele Standardlieferungen sind keine vorhandenen
 Funktionen; der gesamte Standardablauf bleibt durch den gemeinsamen Lock serialisiert.
 
@@ -143,7 +167,8 @@ Funktionen; der gesamte Standardablauf bleibt durch den gemeinsamen Lock seriali
 Bei öffentlichen 403 auf `/admin/catalog/*` oder `/actuator/*` arbeitet die
 APISIX-Sperre wie vorgesehen. Probes und Reload intern ausführen. Bei 502/504
 zuerst Backend-Erreichbarkeit und DNS prüfen; `/gateway-health` bestätigt nur
-den Gateway. Vor Erstpublikation ist Sodata noch nicht gestartet. Login- oder
+den Gateway. Bei abgebrochenem Bootstrap oder Infrastrukturmodus kann Sodata
+noch nicht gestartet sein. Login- oder
 Assetfehler unter `/jenkins/` erfordern einen Abgleich von `JENKINS_OPTS`,
 `JENKINS_URL` und unverändertem Prefix. Bei 413 Requestgrösse und Gateway-Limit
 prüfen; vor Wiederholung eines Uploads zuerst die Jenkins-Buildhistorie ansehen.

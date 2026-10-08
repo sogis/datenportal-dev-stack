@@ -42,11 +42,23 @@ Aus dem Stack-Repository:
 ```
 
 Das baut die lokalen Komponenten, installiert das Plugin im Jenkins-Volume
-und startet die Dienste. Anschliessend folgen **Seeder und administrativer
-Initialaufbau** gemäss [Inbetriebnahme](docs/biblios/inbetriebnahme.adoc).
-Ein gestarteter Container allein ist noch kein publizierbarer Datenbestand.
-Das Portal benötigt eine gültige `current.json`; `up.sh` startet Sodata bei
-HTTP 404 oder einem Altmanifest ohne DuckDB deshalb noch nicht und gibt den späteren Startbefehl aus.
+und bereitet den Stack vollständig vor: erfolgreicher Seed, bei einem frischen
+lokalen Garage-Bestand Erstpublikation und anschliessend Portalstart. Ohne
+CSV-Lieferung ist der Katalog zunächst leer, enthält aber eine gültige DuckDB.
+Bei jedem erneuten Aufruf wird neu geseedet; ein vorhandener Publikationsstand
+wird geprüft und erhalten. Die [Inbetriebnahme](docs/biblios/inbetriebnahme.adoc)
+beschreibt Lieferungen, Migration und Fehlerfälle.
+
+Für lokale Themenrepo-Änderungen mit veröffentlichten Komponentenimages genügt
+`./scripts/up.sh` und `../datenportal-themenrepo`. Der zusätzliche Checkout
+`../datenportal-jenkins-dev` ist nur für lokale Jenkins-Builds erforderlich.
+Die gemeinsame lokale Test-JCasC gehört zum Dev-Stack.
+
+Der Themenintegrator verwendet denselben Start und `scripts/bootstrap.sh`.
+Der Helfer vervollständigt bereits laufende Basisdienste und akzeptiert dieselben
+Compose-Dateien über `-f`. `--check-only` prüft einen vorhandenen Bestand ohne
+Seed oder Container-Neuerstellung. Für bewusstes administratives Initialisieren
+oder Migration `up.sh --infrastructure-only` verwenden.
 
 | Dienst | Standardadresse vom Host/Browser |
 |---|---|
@@ -70,8 +82,8 @@ führt durch:
 - [Fehlerdiagnose, Datenhaltung und Dokumentationszuständigkeiten](docs/biblios/fehlerdiagnose.adoc)
 
 `working-tree` verhindert Git-Rückschreiben. S3-Publikation nach Garage ist im
-Stack dagegen standardmässig aktiviert. Lokale Secrets liegen ausschliesslich
-in ignorierten Dateien. `./scripts/down.sh` stoppt den Stack und erhält die
+Stack dagegen standardmässig aktiviert. Lokale Secrets einschliesslich des gemeinsam verwendeten Reload-Tokens werden
+bei Bedarf erzeugt und liegen ausschliesslich in ignorierten Dateien. `./scripts/down.sh` stoppt den Stack und erhält die
 Volumes; eine Volume-Löschung entfernt auch Jenkins-Jobs und Buildhistorien.
 
 Alle öffentlichen Anwendungen laufen über APISIX. Die Pfade entsprechen dem

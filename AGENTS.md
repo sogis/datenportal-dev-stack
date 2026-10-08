@@ -24,7 +24,9 @@ relativ:
 | [datenportal-dokumentation](https://codeberg.org/edigonzales/datenportal-dokumentation) | `../datenportal-dokumentation` | Thoth-Biblios-Konfiguration und Aggregator für die gemeinsame Datenportal-Dokumentationswebsite. |
 | [datenportal-jenkins-dev](https://codeberg.org/edigonzales/datenportal-jenkins-dev) | `../datenportal-jenkins-dev` | Lokale Jenkins-Laufzeit, JCasC, Offline-Bundle, Plugin-Installation, lokale Integrationsumgebung und Jenkins-Docker-Image. |
 | [datenportal-jenkins-gretl-plugin](https://codeberg.org/edigonzales/datenportal-jenkins-gretl-plugin) | `../datenportal-jenkins-gretl-plugin` | Eigentliche Implementierung und Paketierung des Jenkins-/GRETL-Datenportal-Plugins; erzeugt das HPI, das von `datenportal-jenkins-dev` verwendet wird. |
-| [datenportal-sodata](https://codeberg.org/edigonzales/datenportal-sodata) | `../datenportal-sodata` | Serverseitig gerenderte Datenportal-Webanwendung mit PublishedCatalog-XTF-Import, Suche, Detailseiten und Reload-Funktion; aktuell ohne Docker-/Kubernetes-Deployment. |
+| [datenportal-sodata](https://codeberg.org/edigonzales/datenportal-sodata) | `../datenportal-sodata` | Serverseitig gerenderte Datenportal-Webanwendung mit PublishedCatalog-XTF-Import, Suche, Detailseiten und Reload-Funktion; eigener Native-/JVM-Docker-Buildvertrag. |
+| [datenportal-themenintegrator-agent](https://github.com/edigonzales/datenportal-themenintegrator-agent) | `../datenportal-themenintegrator-agent` | Java-CLI/MCP für geprüfte Themenintegration; verwendet die gemeinsamen Start- und Bootstrap-Schnittstellen dieses Stacks. |
+| [datenportal-dokumentation-betrieb](https://github.com/sogis/datenportal-dokumentation-betrieb) | `../datenportal-dokumentation-betrieb` | Kanonische Betriebsdokumentation mit lokalem Registry-Einstieg und expliziter produktiver Inbetriebnahme. |
 | [datenportal-dokumentation-datenintegration](https://codeberg.org/edigonzales/datenportal-dokumentation-datenintegration) | `../datenportal-dokumentation-datenintegration` | Kanonische Dokumentation für Datenlieferanten und Datenintegration. |
 | [datenportal-dokumentation-glossar](https://codeberg.org/edigonzales/datenportal-dokumentation-glossar) | `../datenportal-dokumentation-glossar` | Kanonisches Glossar des Datenportals. |
 
@@ -69,9 +71,9 @@ Verantwortung ist derzeit:
   Integrationsimage.
 - `datenportal-jenkins-gretl-plugin` pflegt das Plugin und dessen HPI; das
   Jenkins-Dev-Repository installiert dieses Artefakt in die lokale Laufzeit.
-- `datenportal-sodata` hat derzeit keinen dokumentierten Docker- oder
-  Kubernetes-Deploymentvertrag. Für lokale Tests ist daher zunächst der im
-  Repository dokumentierte Laufzeit- bzw. Entwicklungsstart maßgeblich.
+- `datenportal-sodata` pflegt seinen Native-/JVM-Docker-Build und den
+  dokumentierten Container-Laufzeitvertrag. Der Stack integriert dieses Image;
+  der dokumentierte Host-Entwicklungsstart bleibt eine separate Alternative.
 - `datenportal-themenrepo` und `datenportal-pilot-daten` liefern Verträge bzw.
   Testdaten; sie sind nicht automatisch eigene Container-Images.
 

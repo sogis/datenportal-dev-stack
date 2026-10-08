@@ -7,6 +7,8 @@ ENV_FILE="${REPO_DIR}/.env"
 ENV_EXAMPLE="${REPO_DIR}/.env.example"
 CONFIG_TEMPLATE="${REPO_DIR}/services/garage/garage.toml.template"
 CONFIG_FILE="${REPO_DIR}/services/garage/garage.toml"
+caller_reload_token="${DATENPORTAL_PORTAL_RELOAD_TOKEN-}"
+caller_reload_token_set="${DATENPORTAL_PORTAL_RELOAD_TOKEN+x}"
 
 if ! command -v openssl >/dev/null 2>&1; then
   echo "openssl is required to generate local Garage secrets." >&2
@@ -15,6 +17,7 @@ fi
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   cp "${ENV_EXAMPLE}" "${ENV_FILE}"
+  chmod 600 "${ENV_FILE}"
   {
     printf '\n# Generated locally by scripts/init.sh. Do not commit this file.\n'
     printf 'GARAGE_DEFAULT_ACCESS_KEY=GK%s\n' "$(openssl rand -hex 16)"
@@ -50,6 +53,32 @@ else
   echo "Using existing local .env."
 fi
 chmod 600 "${ENV_FILE}"
+
+# Preserve an existing token (including a caller override). Only a missing local
+# token is generated; no token value is printed or copied into tracked files.
+if [[ -n "${caller_reload_token_set}" ]]; then
+  DATENPORTAL_PORTAL_RELOAD_TOKEN="${caller_reload_token}"
+elif [[ -z "${DATENPORTAL_PORTAL_RELOAD_TOKEN+x}" ]]; then
+  # A newly created .env has not been loaded yet.
+  set -a
+  source "${ENV_FILE}"
+  set +a
+fi
+if [[ -z "${DATENPORTAL_PORTAL_RELOAD_TOKEN:-}" ]]; then
+  if [[ -n "${caller_reload_token_set}" ]]; then
+    echo "DATENPORTAL_PORTAL_RELOAD_TOKEN is explicitly empty; complete startup requires a token." >&2
+    exit 1
+  fi
+  # Remove only an empty assignment, never an existing non-empty secret.
+  token_tmp="$(mktemp "${TMPDIR:-/tmp}/datenportal-env.XXXXXX")"
+  trap 'rm -f "${token_tmp}"' EXIT
+  sed '/^DATENPORTAL_PORTAL_RELOAD_TOKEN=[[:space:]]*$/d' "${ENV_FILE}" > "${token_tmp}"
+  printf '\nDATENPORTAL_PORTAL_RELOAD_TOKEN=%s\n' "$(openssl rand -hex 32)" >> "${token_tmp}"
+  chmod 600 "${token_tmp}"
+  mv "${token_tmp}" "${ENV_FILE}"
+  trap - EXIT
+  echo "Generated local shared portal reload token."
+fi
 
 if [[ ! -f "${CONFIG_FILE}" ]]; then
   config_tmp="$(mktemp "${TMPDIR:-/tmp}/datenportal-garage-config.XXXXXX")"

@@ -103,6 +103,12 @@ Testparameter, insbesondere die verschiedenen Image- und Portdefaults, stehen
 in xref:konfiguration.adoc[Konfiguration]. Die Fixtures kommen aus
 `datenportal-pilot-daten`; sie sind keine produktiven Datenquellen.
 
+`test-publication.py` legt die GRETL-/DuckDB-Arbeitsdateien wie Jenkins im
+nativen Container-Dateisystem ab. Abgeschlossene Buildartefakte werden auch
+bei fehlgeschlagenen Jobs ins temporäre Testverzeichnis zurückkopiert.
+Docker-Desktop-Bindmounts dienen ausschliesslich für Eingaben und Ergebnisse;
+laufende DuckDB-Dateien auf diesen Mounts können beschädigte Blöcke liefern.
+
 Für die Prüfungen innerhalb des tatsächlichen Jenkins-Images:
 
 [source,bash]
@@ -218,10 +224,16 @@ python3 scripts/test-docs-start.py
 ----
 
 Die Registry-Prüfung verwendet ein temporäres Verzeichnis ohne Schwester-Repos.
-Sie prüft die aufgelösten Compose-Mounts und Image-Tags ohne Containerstart sowie
-mit Docker-Stubs die Override-Auswahl, die Compose-Mindestversion, unzulässige
-Buildoptionen und fehlende Registry-Images. Die Docs-Tests sichern weiterhin
-lokale Dokumentationsbuilds und die Priorität der Image-Auswahl ab.
+Sie benötigt Docker Compose für die echte Konfigurationsauflösung, startet aber
+keine Container. Docker-Stubs prüfen die Override-Auswahl, die Compose-Mindestversion,
+unzulässige Buildoptionen und fehlende Registry-Images. Für Jenkins, Sodata und
+Dokumentation müssen vorab geprüftes und gestartetes Image übereinstimmen:
+ohne Overrides, mit frisch erzeugter `.env`, bestehenden Image-Overrides und
+vorrangigen Shellwerten. Compose-Defaults und `.env.example` werden abgeglichen.
+Ungültige Compose-Ausgaben müssen vor Pull oder Start abbrechen, ohne die
+vollständige Konfiguration auszugeben. Die Docs-Tests sichern weiterhin
+lokale Dokumentationsbuilds und die Priorität der Image-Auswahl ab; auch sie
+verwenden Docker Compose ausschliesslich zur Konfigurationsauflösung.
 Der historische Stackdurchlauf mit Seed und Lieferung steht im
 link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/pruefprotokolle/2026-09-30-registry-stack.md[Registry-Prüfprotokoll].
 Der ergänzende
@@ -238,3 +250,36 @@ Ports: einmal mit read-only lokalem Themenrepo, einmal Registry-only ohne
 Schwester-Checkouts. Beide Varianten prüfen Erstpublikation, erneuten Seed,
 erhaltene Secrets/Release und die bestehenden Smoke-Tests. Nur die eigenen
 Testvolumes werden im Cleanup entfernt; Logs bleiben im ausgegebenen Verzeichnis.
+
+=== Prüfstand der Image-Defaults vom 12. Oktober 2026
+
+Die acht Image-Referenzen aus xref:konfiguration.adoc[Konfiguration] wurden
+direkt auf Docker Hub für `linux/amd64` und `linux/arm64` geprüft.
+Die 37 Registry-, Docs- und Bootstrap-Regressionstests waren erfolgreich.
+Die isolierten `working-tree`- und `registry-only`-Durchläufe bestanden
+Compose-Konfiguration, Build (ohne lokale Builddefinitionen), Erststart,
+erneuten Start, Servicezustände und Smoke-Tests. Publikationsstand und Secrets
+blieben beim zweiten Start erhalten. Auch der Schutz vor Neuinitialisierung
+eines vorhandenen Bestands nach gelöschtem Manifest wurde geprüft.
+
+`DATENPORTAL_JENKINS_IMAGE=sogis/datenportal-jenkins:0.1.0-6 python3 scripts/test-publication.py`
+bestand alle 22 Liefer-, Git-, S3-, DuckDB-, RDF-, Reload- und Vorschaufälle.
+Der erste Durchlauf scheiterte vor einem Übertragungsfehlerfall an einer
+DuckDB-Prüfsumme auf einem Docker-Desktop-Bindmount. Nach Übernahme des bereits
+im Komponenten-Test verwendeten nativen Arbeitsverzeichnisses bestand die
+vollständige Wiederholung; fachliche Prüfungen und Fehlererwartungen blieben erhalten.
+
+Der Registry-Checkout verwendete Themenrepo-Revision
+`b87771254c07a129fdf573a8fe713076a6aa02e8`. Der lokale Durchlauf verwendete
+`../datenportal-themenrepo` auf derselben Revision einschliesslich der bereits
+vorhandenen Änderungen unter `mfk/ch.so.fahrzeugbestand/` (Datenblatt,
+INTERLIS-Modell und `dataset.gradle`). Die Publikationsfixtures stammen aus
+`../datenportal-pilot-daten`, Revision
+`6485b3ace79885dd515177a6eb34955344dfea73` bei Prüfungsstart. Während der Prüfung
+wechselte dieser Checkout auf `a2798e71f702779d26f1a1bbc3f160afae795f1d` und
+enthielt zusätzlich eine untracked Fahrzeugbestand-CSV. Die verwendete
+Altersstruktur-CSV blieb bytegleich zur Startrevision; die zwischenzeitlichen
+Änderungen wurden erhalten. Jenkins wurde als veröffentlichtes Image
+`sogis/datenportal-jenkins:0.1.0-6` verwendet. Im Rahmen dieser Aufgabe wurden
+keine Schwester-Repositories geändert. Die bestehende Stack-`.env` und
+bestehende Stack-Volumes blieben erhalten.

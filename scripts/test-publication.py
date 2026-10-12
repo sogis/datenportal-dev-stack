@@ -26,6 +26,11 @@ REL=Path('statistikdienst')/DATASET/('meta-'+DATASET+'.xtf')
 REPO=WORK/'repo'
 shutil.copytree(TOPICS,REPO,ignore=shutil.ignore_patterns('.git','.gradle','build','.DS_Store'))
 OUTPUT=REPO/'statistikdienst/build/publication/outputs'
+# DuckDB working files need native container storage, as in Jenkins. Docker
+# Desktop bind mounts carry only inputs and completed artifacts (see the
+# component's tests/publication/test_delivery.py for the same arrangement).
+(WORK/'native-build.gradle').write_text(
+    "gradle.beforeProject { p -> p.buildDir = new File('/tmp/datenportal-build/' + p.projectDir.name) }\n")
 (WORK/'control.json').write_text('{}')
 (WORK/'events.jsonl').write_text('')
 
@@ -59,9 +64,15 @@ def gradle(name,extra=(),root=False,success=True,write=False,task=None):
     project='/test/repo' if root else '/test/repo/statistikdienst'
     command=['docker','run','--rm','--network',NET,'--user','jenkins','--env-file',str(WORK/'gradle.env'),
         '-v',str(WORK)+':/test','-v',str(STACK.parent/'datenportal-pilot-daten')+':/pilot:ro','--entrypoint','/bin/bash',IMAGE,
-        '-c','/usr/local/bin/configure-duckdb-extensions.sh; git config --global --add safe.directory /test/repo; exec "$@"','bash',
+        '-c','set -euo pipefail; /usr/local/bin/configure-duckdb-extensions.sh; '
+        'git config --global --add safe.directory /test/repo; set +e; "$@"; result=$?; set -e; '
+        'if [ -d /tmp/datenportal-build ]; then '
+        'for source in /tmp/datenportal-build/*; do '
+        'name=$(basename "$source"); target=/test/repo/$name/build; '
+        'if [ "$name" = repo ]; then target=/test/repo/build; fi; '
+        'rm -rf "$target"; mkdir -p "$target"; cp -a "$source/." "$target/"; done; fi; exit "$result"','bash',
         '/test/repo/shared/bin/gradlew-java17.sh','--no-daemon','-I','/test/repo/shared/gradle/init.gradle','-p',project,
-        task or ('initializePublication' if root else 'publishToDatenportal')]
+        task or ('initializePublication' if root else 'publishToDatenportal'), '-I', '/test/native-build.gradle']
     if not root:command+=['-Pdataset='+DATASET]
     if write:command+=['-PgitWriteBack=true','-PtopicRepositoryMode=managed-git','-PtopicRepositoryUrl=file:///test/accepted.git',
         '-PtopicRepositoryBranch=main','-PgitBaseRevision='+git('rev-parse','HEAD'),'-PgitCommitterName=Test','-PgitCommitterEmail=test@example.invalid']
@@ -101,13 +112,13 @@ try:
     for key in ('RPC_SECRET','ADMIN_TOKEN','METRICS_TOKEN'):config=config.replace('__'+key+'__',secrets.token_hex(32))
     (WORK/'garage.toml').write_text(config)
     key='GK'+secrets.token_hex(16); secret=secrets.token_hex(32)
-    service('garage','dxflrs/garage:v2.3.0','/garage','server','--single-node','--default-bucket',
+    service('garage','dxflrs/garage:v2.4.1','/garage','server','--single-node','--default-bucket',
         env={'GARAGE_DEFAULT_ACCESS_KEY':key,'GARAGE_DEFAULT_SECRET_KEY':secret,'GARAGE_DEFAULT_BUCKET':'ch.so.daten'},
         volumes=[str(WORK/'garage.toml')+':/etc/garage.toml:ro'])
     for _ in range(40):
         try:run('docker','exec',NET+'-garage','/garage','status');break
         except subprocess.CalledProcessError:time.sleep(.5)
-    service('browser','rclone/rclone:1.75.1','serve','http','test:ch.so.daten','--addr',':8080','--read-only','--dir-cache-time','0s',
+    service('browser','rclone/rclone:1.75.2','serve','http','test:ch.so.daten','--addr',':8080','--read-only','--dir-cache-time','0s',
         env={'RCLONE_CONFIG_TEST_TYPE':'s3','RCLONE_CONFIG_TEST_PROVIDER':'Other','RCLONE_CONFIG_TEST_ACCESS_KEY_ID':key,
             'RCLONE_CONFIG_TEST_SECRET_ACCESS_KEY':secret,'RCLONE_CONFIG_TEST_REGION':'garage',
             'RCLONE_CONFIG_TEST_ENDPOINT':'http://garage:3900','RCLONE_CONFIG_TEST_FORCE_PATH_STYLE':'true'})

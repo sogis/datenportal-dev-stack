@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test up.sh docs selection/failure behavior without Docker or stack mutations."""
+"""Test up.sh docs selection/failure behavior without container or stack mutations."""
 import os
 from pathlib import Path
 import shutil
@@ -10,6 +10,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@unittest.skipUnless(shutil.which('docker'), 'Docker Compose required for image resolution')
 class DocsStartTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -18,23 +19,28 @@ class DocsStartTest(unittest.TestCase):
         (self.root / 'scripts').mkdir()
         (self.root / 'bin').mkdir()
         shutil.copy(ROOT / 'scripts/up.sh', self.root / 'scripts/up.sh')
+        for source in ROOT.glob('compose*.yaml'):
+            shutil.copy(source, self.root / source.name)
         self.executable('scripts/init.sh', '#!/bin/sh\nexit 0\n')
         self.executable('scripts/bootstrap.sh', '#!/bin/sh\necho "bootstrap $*" >> "$TRACE"\n')
         self.executable('scripts/build-docs-local.sh', '#!/bin/sh\necho "docs-build $DOCS_REPO_DIR" >> "$TRACE"\nexit "${BUILD_FAIL:-0}"\n')
         self.executable('bin/docker', '''#!/bin/sh
 echo "$*" >> "$TRACE"
 case "$*" in
+  *'config --format json') exec "$REAL_DOCKER" "$@" ;;
   "image inspect "*docs*) exit "${IMAGE_MISSING:-0}" ;;
   "pull "*) exit "${PULL_FAIL:-0}" ;;
 esac
 exit 0
 ''')
         self.executable('bin/curl', '#!/bin/sh\nprintf 404\n')
-        (self.root / '.env').write_text('DATENPORTAL_DOCS_IMAGE=docs:env\nDOCS_REPO_DIR=env-repo\nGARAGE_BROWSER_ACCESS_KEY=test\nGARAGE_BROWSER_SECRET_KEY=test\n')
-        self.env = {**os.environ, 'PATH': str(self.root / 'bin') + ':' + os.environ['PATH'],
-                    'TRACE': str(self.root / 'trace')}
-        for key in ('DATENPORTAL_DOCS_IMAGE', 'DOCS_REPO_DIR'):
-            self.env.pop(key, None)
+        (self.root / '.env').write_text('DATENPORTAL_DOCS_IMAGE=docs:env\nDOCS_REPO_DIR=env-repo\n'
+                                      'GARAGE_DEFAULT_ACCESS_KEY=test\nGARAGE_DEFAULT_SECRET_KEY=test\n'
+                                      'GARAGE_BROWSER_ACCESS_KEY=test\nGARAGE_BROWSER_SECRET_KEY=test\n')
+        self.env = {k: v for k, v in os.environ.items()
+                    if not k.startswith(('DATENPORTAL_', 'GARAGE_', 'COMPOSE_', 'THEMEN_', 'DOCS_'))}
+        self.env.update(PATH=str(self.root / 'bin') + ':' + os.environ['PATH'],
+                        TRACE=str(self.root / 'trace'), REAL_DOCKER=shutil.which('docker'))
 
     def executable(self, path, content):
         p = self.root / path
@@ -68,7 +74,7 @@ exit 0
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('pull docs:env', trace)
         self.assertNotIn('docs-build', trace)
-        self.assertNotIn('compose', trace)
+        self.assertNotIn(' up ', trace)
         self.assertIn('--local-docs', result.stderr)
 
     def test_shell_image_wins_and_cached_image_is_reused(self):

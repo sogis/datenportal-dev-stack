@@ -17,8 +17,8 @@ docker compose -f compose.yaml -f compose.registry.yaml ps -a
 in diesem Repository. Jenkins verwendet `managed-git` und bezieht
 `https://github.com/sogis/datenportal-themenrepo.git` (Branch `main`) selbst.
 Git-Rückschreiben bleibt aus. Sodata verwendet das native Image
-`sogis/datenportal-sodata:0.1.11`, Jenkins `0.1.0-3`, Dokumentation `0.1.18`.
-Alle acht Image-Referenzen des Registry-Stacks wurden am 30.09.2026 direkt in
+`sogis/datenportal-sodata:0.1.18`, Jenkins `0.1.0-6`, Dokumentation `0.1.24`.
+Alle acht Image-Referenzen des Registry-Stacks wurden am 12.10.2026 direkt in
 der Registry geprüft und sind für `linux/amd64` und `linux/arm64` verfügbar.
 Bei einem frischen Checkout erzeugt `up.sh` die `.env` automatisch mit diesen
 Vorgaben; manuelle Image-Korrekturen sind nicht nötig. Nur bei einer älteren
@@ -27,6 +27,10 @@ Secrets werden nicht ersetzt. Für ein bestehendes System das neue Sodata-Image
 laden und den Container neu erstellen; siehe [Image-Update](docs/biblios/start.adoc#_sodata_in_einer_bestehenden_registry_installation_aktualisieren).
 Alle direkten Compose-Aufrufe dieser Variante
 verwenden beide Dateien. Keine Kombination mit `--local-*`.
+`up.sh` liest die zu prüfenden Images für Jenkins, Sodata und Dokumentation
+aus der effektiven Compose-Konfiguration; Shell- und `.env`-Overrides gelten
+damit auch für die Image-Prüfung. Die Defaults in Compose und `.env.example`
+werden gemeinsam durch Regressionstests abgesichert.
 Der vollständige Ablauf mit Seed, Erstpublikation und einzeln heruntergeladenen
 Beispieldateien steht in der
 [Betriebsdoku](https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/docs/biblios/lokal-kennenlernen.adoc).
@@ -93,7 +97,7 @@ Direktports 8080/8082 und die Variablen `JENKINS_PORT`/`SODATA_PORT` entfallen.
 Alte Editorpfade unter `/metadaten-editor` werden weitergeleitet. Der bestehende
 Downloadpfad bleibt erhalten; vorhandene Volumes nicht neu initialisieren.
 
-Die Dokumentation verwendet standardmässig `sogis/datenportal-dokumentation:0.1.18`
+Die Dokumentation verwendet standardmässig `sogis/datenportal-dokumentation:0.1.24`
 (überschreibbar mit `DATENPORTAL_DOCS_IMAGE`), ohne lokalen Registry-Fallback.
 Mit `./scripts/up.sh --local-docs` werden zuerst die lokalen Dokumentationsquellen
 inklusive uncommitteter Inhalte mit Thoth und danach das Image gebaut. Benötigt

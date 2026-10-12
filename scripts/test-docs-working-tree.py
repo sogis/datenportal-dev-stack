@@ -76,7 +76,7 @@ content:
                 '-p', '127.0.0.1::8081',
                 '-v', str(STACK / 'services/apisix/config.yaml') + ':/usr/local/apisix/conf/config.yaml:ro',
                 '-v', str(STACK / 'services/apisix/apisix.yaml') + ':/usr/local/apisix/conf/apisix.yaml:ro',
-                'apache/apisix:3.14.1-debian')
+                'apache/apisix:3.19.0-debian')
             port = run('docker', 'port', SCOPE + '-gateway', '8081/tcp').rsplit(':', 1)[1]
             url = 'http://127.0.0.1:' + port + '/dokumentation/fixture/main/'
             for attempt in range(60):

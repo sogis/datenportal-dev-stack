@@ -146,6 +146,23 @@ for ((left = 0; left < ${#port_values[@]}; left++)); do
   done
 done
 
+compose_image() {
+  # Keep the secret-bearing Compose JSON in the pipe; print only the image.
+  docker compose "${compose_files[@]}" config --format json | python3 -c '
+import json
+import sys
+
+service = sys.argv[1]
+try:
+    image = json.load(sys.stdin)["services"][service]["image"]
+    if not isinstance(image, str) or not image or any(c.isspace() for c in image):
+        raise ValueError()
+except (ValueError, KeyError, TypeError):
+    sys.exit("Could not resolve Compose image for service " + service + ".")
+print(image)
+' "$1"
+}
+
 if [[ "$registry_only" == true ]]; then
   # Validate the merged mounts before starting any service; never print secrets.
   docker compose "${compose_files[@]}" config --quiet
@@ -154,8 +171,21 @@ fi
 if [[ "$local_docs" == true ]]; then
   ./scripts/build-docs-local.sh
   compose_files+=(-f compose.docs-local.yaml)
-else
-  docs_image="${DATENPORTAL_DOCS_IMAGE:-sogis/datenportal-dokumentation:0.1.18}"
+fi
+
+# Resolve all required references before the first pull. Local overrides only
+# replace their own service image; the other references remain valid afterward.
+if [[ "$local_docs" == false ]]; then
+  docs_image="$(compose_image dokumentation)"
+fi
+if [[ "$local_jenkins" == false ]]; then
+  jenkins_image="$(compose_image jenkins)"
+fi
+if [[ "$local_sodata" == false ]]; then
+  sodata_image="$(compose_image sodata)"
+fi
+
+if [[ "$local_docs" == false ]]; then
   if ! docker image inspect "$docs_image" >/dev/null 2>&1; then
     if ! docker pull "$docs_image"; then
       if [[ "$registry_only" == true ]]; then
@@ -216,15 +246,17 @@ jenkins_local=false
 if [[ "$local_jenkins" == true ]]; then
   ./scripts/build-jenkins-local.sh
   jenkins_local=true
-elif ! resolve_registry_image "${DATENPORTAL_JENKINS_IMAGE:-sogis/datenportal-jenkins:0.1.0-3}" "Jenkins"; then
-  echo "Jenkins registry tag not found; falling back to the local Jenkins image."
-  if docker image inspect datenportal-jenkins:local >/dev/null 2>&1; then
-    echo "Using cached local Jenkins image: datenportal-jenkins:local"
-  else
-    echo "No cached local Jenkins image; building it now."
-    ./scripts/build-jenkins-local.sh
+else
+  if ! resolve_registry_image "$jenkins_image" "Jenkins"; then
+    echo "Jenkins registry tag not found; falling back to the local Jenkins image."
+    if docker image inspect datenportal-jenkins:local >/dev/null 2>&1; then
+      echo "Using cached local Jenkins image: datenportal-jenkins:local"
+    else
+      echo "No cached local Jenkins image; building it now."
+      ./scripts/build-jenkins-local.sh
+    fi
+    jenkins_local=true
   fi
-  jenkins_local=true
 fi
 
 if [[ "$jenkins_local" == true ]]; then
@@ -235,15 +267,17 @@ sodata_local=false
 if [[ "$local_sodata" == true ]]; then
   ./scripts/build-sodata-local.sh
   sodata_local=true
-elif ! resolve_registry_image "${DATENPORTAL_SODATA_IMAGE:-sogis/datenportal-sodata:0.1.11}" "Sodata"; then
-  echo "Sodata registry tag not found; falling back to the local Sodata image."
-  if docker image inspect datenportal-sodata:local >/dev/null 2>&1; then
-    echo "Using cached local Sodata image: datenportal-sodata:local"
-  else
-    echo "No cached local Sodata image; building it now."
-    ./scripts/build-sodata-local.sh
+else
+  if ! resolve_registry_image "$sodata_image" "Sodata"; then
+    echo "Sodata registry tag not found; falling back to the local Sodata image."
+    if docker image inspect datenportal-sodata:local >/dev/null 2>&1; then
+      echo "Using cached local Sodata image: datenportal-sodata:local"
+    else
+      echo "No cached local Sodata image; building it now."
+      ./scripts/build-sodata-local.sh
+    fi
+    sodata_local=true
   fi
-  sodata_local=true
 fi
 
 if [[ "$sodata_local" == true ]]; then

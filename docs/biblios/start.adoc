@@ -13,8 +13,8 @@ Jenkins bezieht das Themenrepo selbst von
 `THEMEN_REPO_URL` und `THEMEN_REPO_BRANCH` sind über `.env` konfigurierbar.
 Git-Rückschreiben bleibt ausgeschaltet. Das Portal verwendet das native Image.
 
-Neue `.env`-Dateien enthalten Jenkins `0.1.0-6`, Sodata `0.1.18` und
-Dokumentation `0.1.24`. Bei vorhandenen Dateien die Image-Werte gezielt
+Neue `.env`-Dateien enthalten Jenkins `0.1.0-7`, Sodata `0.1.20` und
+Dokumentation `0.1.27`. Bei vorhandenen Dateien die Image-Werte gezielt
 aktualisieren, Secrets erhalten. Der Registry-Modus baut keine Images und ist
 mit keiner lokalen Buildoption kombinierbar. Direkte Befehle immer mit beiden
 Compose-Dateien ausführen:
@@ -34,7 +34,7 @@ link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/docs/b
 === Sodata in einer bestehenden Registry-Installation aktualisieren
 
 Bei gültigem Publikationsmanifest in der vorhandenen `.env` den Wert
-`DATENPORTAL_SODATA_IMAGE=sogis/datenportal-sodata:0.1.18` setzen; die übrigen
+`DATENPORTAL_SODATA_IMAGE=sogis/datenportal-sodata:0.1.20` setzen; die übrigen
 Werte und Secrets beibehalten. Danach:
 
 [source,bash]

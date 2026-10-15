@@ -168,8 +168,8 @@ esac
             self.assertEqual(services[name]['image'], image)
 
     def test_missing_registry_tags_still_use_local_fallback(self):
-        for name, image in [('jenkins', 'sogis/datenportal-jenkins:0.1.0-6'),
-                            ('sodata', 'sogis/datenportal-sodata:0.1.18')]:
+        for name, image in [('jenkins', 'sogis/datenportal-jenkins:0.1.0-7'),
+                            ('sodata', 'sogis/datenportal-sodata:0.1.20')]:
             with self.subTest(service=name):
                 (self.root / 'trace').unlink(missing_ok=True)
                 result = subprocess.run([str(self.root / 'scripts/up.sh')],
@@ -182,7 +182,7 @@ esac
 
     def test_registry_access_failure_does_not_use_local_fallback(self):
         result = subprocess.run([str(self.root / 'scripts/up.sh')],
-                                env={**self.env, 'MISSING_IMAGE': 'sogis/datenportal-sodata:0.1.18',
+                                env={**self.env, 'MISSING_IMAGE': 'sogis/datenportal-sodata:0.1.20',
                                      'PULL_ERROR': 'unauthorized'},
                                 capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
@@ -223,8 +223,8 @@ esac
                 self.assertNotIn('\ninit\n', '\n' + trace)
 
     def test_missing_images_abort_without_build_or_container_start(self):
-        for image in ('sogis/datenportal-jenkins:0.1.0-6', 'sogis/datenportal-sodata:0.1.18',
-                      'sogis/datenportal-dokumentation:0.1.24'):
+        for image in ('sogis/datenportal-jenkins:0.1.0-7', 'sogis/datenportal-sodata:0.1.20',
+                      'sogis/datenportal-dokumentation:0.1.27'):
             with self.subTest(image=image):
                 (self.root / 'trace').unlink(missing_ok=True)
                 result, trace = self.start(MISSING_IMAGE=image)
@@ -256,7 +256,7 @@ esac
         self.assertEqual(jenkins['environment']['THEMEN_REPO_MODE'], 'managed-git')
         self.assertEqual(jenkins['environment']['THEMEN_REPO_PATH'], '')
         self.assertEqual(jenkins['environment']['ORG_GRADLE_PROJECT_gitWriteBack'], 'false')
-        self.assertEqual(services['sodata']['image'], 'sogis/datenportal-sodata:0.1.18')
+        self.assertEqual(services['sodata']['image'], 'sogis/datenportal-sodata:0.1.20')
 
 
 if __name__ == '__main__':

@@ -17,8 +17,8 @@ docker compose -f compose.yaml -f compose.registry.yaml ps -a
 in diesem Repository. Jenkins verwendet `managed-git` und bezieht
 `https://github.com/sogis/datenportal-themenrepo.git` (Branch `main`) selbst.
 Git-Rückschreiben bleibt aus. Sodata verwendet das native Image
-`sogis/datenportal-sodata:0.1.18`, Jenkins `0.1.0-6`, Dokumentation `0.1.24`.
-Alle acht Image-Referenzen des Registry-Stacks wurden am 12.10.2026 direkt in
+`sogis/datenportal-sodata:0.1.20`, Jenkins `0.1.0-7`, Dokumentation `0.1.27`.
+Alle acht Image-Referenzen des Registry-Stacks wurden am 15.10.2026 direkt in
 der Registry geprüft und sind für `linux/amd64` und `linux/arm64` verfügbar.
 Bei einem frischen Checkout erzeugt `up.sh` die `.env` automatisch mit diesen
 Vorgaben; manuelle Image-Korrekturen sind nicht nötig. Nur bei einer älteren
@@ -97,7 +97,7 @@ Direktports 8080/8082 und die Variablen `JENKINS_PORT`/`SODATA_PORT` entfallen.
 Alte Editorpfade unter `/metadaten-editor` werden weitergeleitet. Der bestehende
 Downloadpfad bleibt erhalten; vorhandene Volumes nicht neu initialisieren.
 
-Die Dokumentation verwendet standardmässig `sogis/datenportal-dokumentation:0.1.24`
+Die Dokumentation verwendet standardmässig `sogis/datenportal-dokumentation:0.1.27`
 (überschreibbar mit `DATENPORTAL_DOCS_IMAGE`), ohne lokalen Registry-Fallback.
 Mit `./scripts/up.sh --local-docs` werden zuerst die lokalen Dokumentationsquellen
 inklusive uncommitteter Inhalte mit Thoth und danach das Image gebaut. Benötigt

@@ -55,8 +55,8 @@ Compose-/Startaufrufs gemäss obiger Priorität. Wirksamkeit: Container neu erze
 [cols="2,3,4,1",options="header"]
 |===
 |Parameter |Default / Pflicht |Verbraucher und Wirkung |Secret
-|`DATENPORTAL_JENKINS_IMAGE` |`sogis/datenportal-jenkins:0.1.0-6` |`up.sh`, Basis-Compose: Jenkins-Image. Lokales Override setzt stattdessen fest `datenportal-jenkins:local`. |nein
-|`DATENPORTAL_SODATA_IMAGE` |`sogis/datenportal-sodata:0.1.18` |`up.sh`, Basis-Compose: Portal-Image. Lokales Override setzt stattdessen fest `datenportal-sodata:local`. |nein
+|`DATENPORTAL_JENKINS_IMAGE` |`sogis/datenportal-jenkins:0.1.0-7` |`up.sh`, Basis-Compose: Jenkins-Image. Lokales Override setzt stattdessen fest `datenportal-jenkins:local`. |nein
+|`DATENPORTAL_SODATA_IMAGE` |`sogis/datenportal-sodata:0.1.20` |`up.sh`, Basis-Compose: Portal-Image. Lokales Override setzt stattdessen fest `datenportal-sodata:local`. |nein
 |`GARAGE_S3_PORT` |`3900` |Garage-S3-Hostport. Ändert nicht `http://garage:3900` im Netz. |nein
 |`GARAGE_PUBLIC_PORT` |`8081` |Öffentlicher APISIX-Hostport und Listener-Port im gemeinsamen Jenkins-Netzwerkraum; Initialisierungsumgebung, Manifest- und Downloadadressen. Darf intern nicht 8080 oder mit einem anderen Hostport identisch sein. |nein
 |`THEMEN_REPO_BRANCH` |`main` |Jenkins/JCasC: gespeicherter Branch. Im festen `working-tree`-Modus kein Wechsel des lokalen Branches. Neuer Seed für Jobkontext. |nein
@@ -111,8 +111,8 @@ Direkte Compose-Aufrufe benötigen `-f compose.yaml -f compose.registry.yaml`.
 |`ORG_GRADLE_PROJECT_catalogDownloadBase` |`http://localhost:<GARAGE_PUBLIC_PORT>/ch.so.daten`; öffentlich erreichbare Distributionsbasis. Kein eigener `.env`-Override dieses Namens.
 |Git-Freigabe |Beide Compose-Modi setzen Plugin- und Gradle-Git-Schreibfreigabe ausdrücklich auf `false`.
 |Garage-Bucket / Region |`ch.so.daten` / `garage` für Garage, Browser und Hilfsservices.
-|Infrastrukturimages |APISIX `apache/apisix:3.19.0-debian` (dateigesteuerter Data Plane ohne etcd/Admin-API/TLS), Garage `dxflrs/garage:v2.4.1`, rclone `rclone/rclone:1.75.2`, AWS-Hilfe/Initialisierung `amazon/aws-cli:2.37.12`.
-|Editorimage |Basis: `sogis/datenportal-datenblatt-editor:0.1.13`; lokales Override: `datenblatt-editor:local`, Buildquelle `../datenportal-datenblatt-editor`.
+|Infrastrukturimages |APISIX `apache/apisix:3.19.0-debian` (dateigesteuerter Data Plane ohne etcd/Admin-API/TLS), Garage `dxflrs/garage:v2.4.1`, rclone `rclone/rclone:1.75.2`, AWS-Hilfe/Initialisierung `amazon/aws-cli:2.38.1`.
+|Editorimage |Basis: `sogis/datenportal-datenblatt-editor:0.1.15`; lokales Override: `datenblatt-editor:local`, Buildquelle `../datenportal-datenblatt-editor`.
 |Editor-Buildargumente lokal |`VITE_BASE_PATH=./`, `VITE_METADATA_SOURCE_URL=/ch.so.daten/current.json`. Buildzeitwerte, keine Runtime-ENV.
 |Jenkinsimage lokal |`compose.jenkins-local.yaml`: fest `datenportal-jenkins:local`.
 |Portalimage lokal |`compose.sodata-local.yaml`: fest `datenportal-sodata:local`; Buildkontext `../datenportal-sodata` (über `SODATA_REPO_DIR` überschreibbar). Dockerfile und Buildlogik liegen im Portal-Repository.
@@ -246,7 +246,7 @@ beschrieben; lokal empfängt APISIX direkt HTTP.
 
 == Dokumentation
 
-* `DATENPORTAL_DOCS_IMAGE`: Standard `sogis/datenportal-dokumentation:0.1.24`;
+* `DATENPORTAL_DOCS_IMAGE`: Standard `sogis/datenportal-dokumentation:0.1.27`;
   alternativ ein anderer Tag, Digest oder GHCR-Image.
 * `DOCS_REPO_DIR`: Standard `../datenportal-dokumentation` (relativ zum Stack).
 * `THOTH_REPO_DIR`: Standard Schwesterverzeichnis `thoth` neben dem

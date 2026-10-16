@@ -1,7 +1,10 @@
-services:
-  dokumentation:
-    image: datenportal-dokumentation:local
-    pull_policy: never
-    build:
-      context: ${DOCS_REPO_DIR:-../datenportal-dokumentation}
-      dockerfile: Dockerfile
+# Im Branch s3-aws inaktiv; nur compose.sodata-local.yaml ist als Build-Override aktiv.
+services: {}
+
+# services:
+#   dokumentation:
+#     image: datenportal-dokumentation:local
+#     pull_policy: never
+#     build:
+#       context: ${DOCS_REPO_DIR:-../datenportal-dokumentation}
+#       dockerfile: Dockerfile

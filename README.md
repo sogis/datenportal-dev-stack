@@ -1,106 +1,120 @@
-# datenportal-dev-stack
+# datenportal-dev-stack — Branch `s3-aws`
 
-Lokaler Integrationsstack für Entwicklung, Tests und Demos: Garage-S3,
-APISIX für sämtliche öffentlichen HTTP-Zugänge, Datenblatt-Editor, Portal und
-Jenkins/GRETL sowie die Dokumentation. Die Komponenten und ihre Buildlogik bleiben in den jeweiligen
-Schwester-Repositories.
+Dieser Branch betreibt vorübergehend nur **Sodata und APISIX**. Das Datenportal
+liest den veröffentlichten Katalog, die DuckDB und die Datendownloads aus dem
+AWS-Testbucket `ch.so.daten-test` in `eu-central-1`:
 
-Für eine Testumgebung nur mit veröffentlichten, versionsgetaggten Images genügt
-dieser Checkout (Docker Compose >= 2.24.4, Git, Bash, OpenSSL, curl und Python 3):
+- [Publikationsmanifest](https://s3.eu-central-1.amazonaws.com/ch.so.daten-test/current.json)
+- [Downloadbasis](https://s3.eu-central-1.amazonaws.com/ch.so.daten-test)
+
+Garage, Initialisierung, S3-Browser, AWS-Hilfsdienst, Jenkins/GRETL,
+Datenblatt-Editor und Dokumentation sind in Compose und ihren APISIX-Routen
+vorübergehend auskommentiert. Die zugehörigen Build-Overrides sind ebenfalls
+inaktiv. Dieser Branch publiziert keine Daten und ändert keine AWS-Objekte.
+
+## Starten
+
+Benötigt werden Docker mit Compose v2, Bash, Python 3 und Internetzugriff auf
+Registry und AWS. Eine `.env`, AWS-Zugangsdaten und Schwester-Checkouts sind für
+den Standardstart nicht erforderlich.
 
 ```bash
+./scripts/up.sh
+# Gleichwertig:
 ./scripts/up.sh --registry-only
-docker compose -f compose.yaml -f compose.registry.yaml ps -a
 ```
 
-`compose.registry.yaml` ersetzt die Schwesterrepo-Mounts durch die Test-JCasC
-in diesem Repository. Jenkins verwendet `managed-git` und bezieht
-`https://github.com/sogis/datenportal-themenrepo.git` (Branch `main`) selbst.
-Git-Rückschreiben bleibt aus. Sodata verwendet das native Image
-`sogis/datenportal-sodata:0.1.20`, Jenkins `0.1.0-7`, Dokumentation `0.1.27`.
-Alle acht Image-Referenzen des Registry-Stacks wurden am 15.10.2026 direkt in
-der Registry geprüft und sind für `linux/amd64` und `linux/arm64` verfügbar.
-Bei einem frischen Checkout erzeugt `up.sh` die `.env` automatisch mit diesen
-Vorgaben; manuelle Image-Korrekturen sind nicht nötig. Nur bei einer älteren
-`.env` diese drei Image-Werte abgleichen und gegebenenfalls aktualisieren;
-Secrets werden nicht ersetzt. Für ein bestehendes System das neue Sodata-Image
-laden und den Container neu erstellen; siehe [Image-Update](docs/biblios/start.adoc#_sodata_in_einer_bestehenden_registry_installation_aktualisieren).
-Alle direkten Compose-Aufrufe dieser Variante
-verwenden beide Dateien. Keine Kombination mit `--local-*`.
-`up.sh` liest die zu prüfenden Images für Jenkins, Sodata und Dokumentation
-aus der effektiven Compose-Konfiguration; Shell- und `.env`-Overrides gelten
-damit auch für die Image-Prüfung. Die Defaults in Compose und `.env.example`
-werden gemeinsam durch Regressionstests abgesichert.
-Der vollständige Ablauf mit Seed, Erstpublikation und einzeln heruntergeladenen
-Beispieldateien steht in der
-[Betriebsdoku](https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/docs/biblios/lokal-kennenlernen.adoc).
+Das Portal läuft unter [http://localhost:8081/](http://localhost:8081/).
+APISIX bleibt als Dienst `downloads` aktiv, hat einen eigenen Netzwerkraum und
+leitet nur das Portal weiter. `/admin`, `/actuator` und `/apisix/admin` bleiben
+öffentlich gesperrt. Sodata veröffentlicht keinen direkten Hostport.
 
-Für den empfohlenen Entwicklungsweg werden Docker mit Compose v2, Bash,
-OpenSSL, Git, rsync, Python 3, Maven sowie Java 17 und Java 21 benötigt. Die benötigten Checkouts und Java-Einstellungen stehen unter
-[Voraussetzungen und Start](docs/biblios/start.adoc).
+Der Start entfernt veraltete Container desselben Compose-Projekts, erhält aber
+alle benannten Garage-/Jenkins-Volumes. Es gibt keinen Seed, keine
+Erstpublikation und keinen automatischen lokalen Build-Fallback. Verwendet
+werden `sogis/datenportal-sodata:0.1.20` und `apache/apisix:3.19.0-debian`.
 
-Aus dem Stack-Repository:
+Direkte Compose-Aufrufe funktionieren ebenfalls:
 
 ```bash
-./scripts/up.sh --local-editor --local-jenkins --local-sodata
+docker compose config --quiet
+docker compose pull sodata downloads
+docker compose up -d --remove-orphans --wait --wait-timeout 120
+docker compose ps
+./scripts/smoke-test.sh
 ```
 
-Das baut die lokalen Komponenten, installiert das Plugin im Jenkins-Volume
-und bereitet den Stack vollständig vor: erfolgreicher Seed, bei einem frischen
-lokalen Garage-Bestand Erstpublikation und anschliessend Portalstart. Ohne
-CSV-Lieferung ist der Katalog zunächst leer, enthält aber eine gültige DuckDB.
-Bei jedem erneuten Aufruf wird neu geseedet; ein vorhandener Publikationsstand
-wird geprüft und erhalten. Die [Inbetriebnahme](docs/biblios/inbetriebnahme.adoc)
-beschreibt Lieferungen, Migration und Fehlerfälle.
+## Konfiguration und lokale Builds
 
-Für lokale Themenrepo-Änderungen mit veröffentlichten Komponentenimages genügt
-`./scripts/up.sh` und `../datenportal-themenrepo`. Der zusätzliche Checkout
-`../datenportal-jenkins-dev` ist nur für lokale Jenkins-Builds erforderlich.
-Die gemeinsame lokale Test-JCasC gehört zum Dev-Stack.
+Optionale Einstellungen stehen in `.env.example`. Compose liest eine bestehende
+ignorierte `.env`; exportierte Shellwerte haben Vorrang. Die Startskripte
+überschreiben oder erzeugen keine `.env` und benötigen keine Garage-Secrets.
+`GARAGE_PUBLIC_PORT` bleibt aus Kompatibilitätsgründen der Name für den
+APISIX-Hostport und Listener (Default `8081`). Er hat keine Garage-Abhängigkeit.
 
-Der Themenintegrator verwendet denselben Start und `scripts/bootstrap.sh`.
-Der Helfer vervollständigt bereits laufende Basisdienste und akzeptiert dieselben
-Compose-Dateien über `-f`. `--check-only` prüft einen vorhandenen Bestand ohne
-Seed oder Container-Neuerstellung. Für bewusstes administratives Initialisieren
-oder Migration `up.sh --infrastructure-only` verwenden.
+`DATENPORTAL_CATALOG_HTTP_URL` überschreibt die Manifestadresse,
+`DATENPORTAL_CATALOG_DOWNLOAD_URL` die öffentliche Downloadbasis einschliesslich
+der für die CSP erlaubten Origin. XTF und DuckDB stammen gemeinsam aus dem
+Manifest. DuckDB-Views müssen bereits auf die passenden Parquet-Adressen zeigen;
+die Webapp schreibt sie nicht um. Daten werden beim Start oder einem expliziten
+internen Reload neu gelesen, ohne automatisches Polling. Ein Neustart für den
+aktuellen AWS-Stand:
 
-| Dienst | Standardadresse vom Host/Browser |
-|---|---|
-| Jenkins, lokal `admin` / `admin` | http://localhost:8081/anlieferung |
-| Jenkins-Administration | http://localhost:8081/jenkins/ |
-| Öffentlicher Bucket | http://localhost:8081/ch.so.daten/ |
-| RDF-Export nach erfolgreicher Publikation | http://localhost:8081/ch.so.daten/opendata.rdf |
-| Gültiger Gesamtstand nach Initialisierung | http://localhost:8081/ch.so.daten/current.json |
-| Editor | http://localhost:8081/datenblatt-editor/ |
-| Dokumentation | http://localhost:8081/dokumentation/ |
-| Portal | http://localhost:8081/ |
-| Authentifizierte S3-API | http://localhost:3900 |
+```bash
+docker compose restart sodata
+```
 
-Die vollständige [Entwicklungsdokumentation](docs/biblios/index.adoc)
-führt durch:
+Ohne optionalen `DATENPORTAL_PORTAL_RELOAD_TOKEN` bleiben interner Reload und
+Adminstatus deaktiviert; der normale Portalstart benötigt keinen Token.
+AWS-Schreibzugangsdaten werden nicht an die Container übergeben.
 
-- [Voraussetzungen, Startoptionen und Images](docs/biblios/start.adoc)
-- [Initialisierung, Lieferungen, Vorschau und Portal-Anschluss](docs/biblios/inbetriebnahme.adoc)
-- [Parameter, Prioritäten und feste Compose-Werte](docs/biblios/konfiguration.adoc)
-- [Komponentenupdate und Tests](docs/biblios/entwicklung.adoc)
-- [Fehlerdiagnose, Datenhaltung und Dokumentationszuständigkeiten](docs/biblios/fehlerdiagnose.adoc)
+Für einen expliziten lokalen Portalbuild:
 
-`working-tree` verhindert Git-Rückschreiben. S3-Publikation nach Garage ist im
-Stack dagegen standardmässig aktiviert. Lokale Secrets einschliesslich des gemeinsam verwendeten Reload-Tokens werden
-bei Bedarf erzeugt und liegen ausschliesslich in ignorierten Dateien. `./scripts/down.sh` stoppt den Stack und erhält die
-Volumes; eine Volume-Löschung entfernt auch Jenkins-Jobs und Buildhistorien.
+```bash
+./scripts/up.sh --local-sodata
+```
 
-Alle öffentlichen Anwendungen laufen über APISIX. Die Pfade entsprechen dem
-Produktionsziel auf `daten.so.ch`; öffentliche Dateien erhalten dort eine
-separate Subdomain. S3-Schreiben und Portal-Reload bleiben intern. Die bisherigen
-Direktports 8080/8082 und die Variablen `JENKINS_PORT`/`SODATA_PORT` entfallen.
-Alte Editorpfade unter `/metadaten-editor` werden weitergeleitet. Der bestehende
-Downloadpfad bleibt erhalten; vorhandene Volumes nicht neu initialisieren.
+Dafür wird der Arbeitsstand von `../datenportal-sodata` verwendet, optional durch
+`SODATA_REPO_DIR` in Umgebung oder `.env` überschreibbar. Dockerfile und Buildlogik
+bleiben dort; nur das Portalimage wird lokal gebaut. `--registry-only` und
+`--local-sodata` sind gegenseitig ausgeschlossen. `--local-editor`,
+`--local-jenkins`, `--local-docs` und `--infrastructure-only` sind in diesem Branch
+deaktiviert und brechen vor Docker-Aktionen mit einer Erklärung ab.
 
-Die Dokumentation verwendet standardmässig `sogis/datenportal-dokumentation:0.1.27`
-(überschreibbar mit `DATENPORTAL_DOCS_IMAGE`), ohne lokalen Registry-Fallback.
-Mit `./scripts/up.sh --local-docs` werden zuerst die lokalen Dokumentationsquellen
-inklusive uncommitteter Inhalte mit Thoth und danach das Image gebaut. Benötigt
-werden Java 25, Python mit PyYAML und der benachbarte Thoth-Checkout oder
-`THOTH_JAR`. Der Schalter ist mit den anderen lokalen Buildoptionen kombinierbar,
-aber nicht mit `--registry-only`. Siehe [lokaler Docs-Build](docs/biblios/entwicklung.adoc).
+## Prüfen und Stoppen
+
+```bash
+python3 scripts/test-registry-start.py
+python3 scripts/test-docs-start.py
+./scripts/smoke-test.sh
+./scripts/down.sh
+```
+
+Die Starttests laufen in temporären Checkouts mit echtem Compose, aber ohne
+Containeränderungen. Der Smoke-Test führt nur GET/HEAD aus: Portal, Suche,
+Detailseite, Erkunden-Kontext, AWS-Downloads, CORS/Range, Gateway-Sperren sowie
+Gleichheit der Portal-XTF/DuckDB mit dem AWS-Manifest. Eine SQL-Abfrage im
+Erkunden-Browser ist eine zusätzliche Live-Abnahme. Bei zwischenzeitlich
+geändertem AWS-Release Sodata neu starten und den Smoke-Test wiederholen.
+`down.sh` entfernt auch veraltete Projektcontainer und erhält die Volumes.
+
+Die [lokalen Betriebsanleitungen](docs/biblios/index.adoc) kennzeichnen den
+aktuellen AWS-Betrieb und den historischen Garage-Gesamtstack getrennt. Die
+historischen Seed-, Publikations-, Jenkins-, Editor- und Dokumentationstests
+sind in diesem Branch nicht anwendbar. `scripts/init.sh`, Bootstrap und
+Lieferungshelfer gehören weiterhin ausschliesslich zum inaktiven Garage-Betrieb.
+
+Die kanonischen Komponentenverträge bleiben in ihren Schwester-Repositories.
+Der AWS-Anschluss erfordert keine Änderungen dort. Die Bucketangaben stammen
+aus der bereitgestellten OpenShift-Vorlage `datenportal-stack/jenkins/jenkins.yaml`;
+deren Deployment- und Jenkins-Anweisungen werden hier nicht übernommen.
+
+Live geprüft am 16.10.2026 mit Sodata `0.1.20` und AWS-Release
+`e4560849-cd01-4e19-ac09-11f5d3036fb1`: 23 sichtbare Katalogeinträge und eine
+erfolgreiche SQL-Vorschau mit 23 Zeilen für `ch.so.ebau_statistik_dossiers`.
+Compose-Konfiguration, Registry-Start, interne Readiness, 13 Starttests,
+lesender Smoke-Test und `git diff --check` waren erfolgreich.
+`docker compose build` hat im Registry-Betrieb keine Buildziele; der lokale
+Native-Build wurde nicht ausgeführt. Als Vertragsreferenz wurde der saubere
+Checkout `../datenportal-sodata` auf `main` bei `b14550c` gelesen und unverändert
+belassen. Ausgangsstand des Dev-Stacks: `s3-aws` bei `915db87`.

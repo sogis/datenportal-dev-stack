@@ -2,6 +2,38 @@
 = Entwicklung und Tests
 :page-layout: docs
 
+[IMPORTANT]
+====
+Im Branch `s3-aws` läuft ausschliesslich das AWS-Portal mit Sodata und APISIX.
+Die nach dem Abschnitt «Historischer Garage-Gesamtstack» folgenden Anleitungen
+sind vorübergehend inaktiv und dürfen in diesem Branch nicht ausgeführt werden.
+Die aktuelle Übersicht steht im Repository-README.
+====
+
+== Aktive Prüfungen (Branch s3-aws)
+
+[source,bash]
+----
+python3 scripts/test-registry-start.py
+python3 scripts/test-docs-start.py
+docker compose config --quiet
+docker compose build
+./scripts/up.sh
+./scripts/smoke-test.sh
+git diff --check
+----
+
+Der Registry-Stack hat keinen Build; Compose meldet dort entsprechend keine
+zu bauenden Dienste. `--local-sodata` baut den vorhandenen Komponenten-Dockerfile.
+Starttests prüfen isoliert Standard-/Registrystart, lokale Buildauswahl,
+ENV-Priorität, Fehlerabbrüche und Volume-Erhalt. Smoke prüft nur GET/HEAD,
+einschliesslich AWS-Artefaktgleichheit, Downloads, CORS/Range und Gateway-Sperren.
+Zusätzlich im Browser eine Erkunden-Abfrage gegen die AWS-Parquet-Daten ausführen.
+Historische Publikations-/Bootstrap-/Jenkins-/Docs-Integrationstests benötigen
+den deaktivierten Gesamtstack und werden hier nicht ausgeführt.
+
+== Historischer Garage-Gesamtstack (inaktiv)
+
 == Änderungen in den laufenden Stack übernehmen
 
 Identifier-Änderungen sind administrative Migrationen des angenommenen

@@ -17,116 +17,117 @@ routes:
         functions:
           - 'return function() return ngx.exit(403) end'
 
-  - id: delivery-entry
-    uris: [/anlieferung, /anlieferung/]
-    plugins:
-      redirect:
-        uri: /jenkins/gretl-datenportal/
-        ret_code: 302
-        append_query_string: true
-
-  - id: jenkins-root
-    uri: /jenkins
-    plugins:
-      redirect:
-        uri: /jenkins/
-        ret_code: 308
-        append_query_string: true
-
-  - id: jenkins
-    uri: /jenkins/*
-    upstream:
-      type: roundrobin
-      pass_host: pass
-      timeout:
-        connect: 10
-        send: 300
-        read: 300
-      nodes:
-        "127.0.0.1:8080": 1
-
-  - id: editor-legacy
-    uris: [/metadaten-editor, /metadaten-editor/*]
-    plugins:
-      redirect:
-        regex_uri: ['^/metadaten-editor/?(.*)', '/datenblatt-editor/$1']
-        ret_code: 308
-        append_query_string: true
-
-  - id: editor-root
-    uri: /datenblatt-editor
-    plugins:
-      redirect:
-        uri: /datenblatt-editor/
-        ret_code: 308
-        append_query_string: true
-
-  - id: editor
-    uri: /datenblatt-editor/*
-    plugins:
-      proxy-rewrite:
-        regex_uri: ['^/datenblatt-editor/(.*)', '/$1']
-        headers:
-          set:
-            X-Forwarded-Prefix: /datenblatt-editor
-    upstream:
-      type: roundrobin
-      nodes:
-        "datenblatt-editor:8080": 1
-
-  - id: docs-root
-    uri: /dokumentation
-    plugins:
-      redirect:
-        uri: /dokumentation/
-        ret_code: 308
-        append_query_string: true
-
-  - id: docs
-    uri: /dokumentation/*
-    plugins:
-      proxy-rewrite:
-        regex_uri: ['^/dokumentation/(.*)', '/$1']
-        headers:
-          set:
-            X-Forwarded-Prefix: /dokumentation
-    upstream:
-      type: roundrobin
-      nodes:
-        "dokumentation:8080": 1
-
-  - id: bucket-root
-    uri: /ch.so.daten
-    plugins:
-      cors:
-        allow_origins: "*"
-        allow_methods: "GET,HEAD,OPTIONS"
-        allow_headers: "*"
-        expose_headers: "ETag,Content-Length,Content-Type,Accept-Ranges,Content-Range"
-      redirect:
-        uri: /ch.so.daten/
-        ret_code: 308
-
-  - id: bucket
-    uri: /ch.so.daten/*
-    plugins:
-      cors:
-        allow_origins: "*"
-        allow_methods: "GET,HEAD,OPTIONS"
-        allow_headers: "*"
-        expose_headers: "ETag,Content-Length,Content-Type,Accept-Ranges,Content-Range"
-      forward-auth:
-        uri: http://garage:3903/check?domain=ch.so.daten
-      response-rewrite:
-        headers:
-          set:
-            Cache-Control: no-store
-    upstream:
-      type: roundrobin
-      nodes:
-        "s3-browser:8080": 1
-
-  # No startup dependency on Sodata: bootstrap must work before a manifest exists.
+  # Im Branch s3-aws deaktivierte Gesamtstack-Routen.
+#   - id: delivery-entry
+#     uris: [/anlieferung, /anlieferung/]
+#     plugins:
+#       redirect:
+#         uri: /jenkins/gretl-datenportal/
+#         ret_code: 302
+#         append_query_string: true
+#
+#   - id: jenkins-root
+#     uri: /jenkins
+#     plugins:
+#       redirect:
+#         uri: /jenkins/
+#         ret_code: 308
+#         append_query_string: true
+#
+#   - id: jenkins
+#     uri: /jenkins/*
+#     upstream:
+#       type: roundrobin
+#       pass_host: pass
+#       timeout:
+#         connect: 10
+#         send: 300
+#         read: 300
+#       nodes:
+#         "127.0.0.1:8080": 1
+#
+#   - id: editor-legacy
+#     uris: [/metadaten-editor, /metadaten-editor/*]
+#     plugins:
+#       redirect:
+#         regex_uri: ['^/metadaten-editor/?(.*)', '/datenblatt-editor/$1']
+#         ret_code: 308
+#         append_query_string: true
+#
+#   - id: editor-root
+#     uri: /datenblatt-editor
+#     plugins:
+#       redirect:
+#         uri: /datenblatt-editor/
+#         ret_code: 308
+#         append_query_string: true
+#
+#   - id: editor
+#     uri: /datenblatt-editor/*
+#     plugins:
+#       proxy-rewrite:
+#         regex_uri: ['^/datenblatt-editor/(.*)', '/$1']
+#         headers:
+#           set:
+#             X-Forwarded-Prefix: /datenblatt-editor
+#     upstream:
+#       type: roundrobin
+#       nodes:
+#         "datenblatt-editor:8080": 1
+#
+#   - id: docs-root
+#     uri: /dokumentation
+#     plugins:
+#       redirect:
+#         uri: /dokumentation/
+#         ret_code: 308
+#         append_query_string: true
+#
+#   - id: docs
+#     uri: /dokumentation/*
+#     plugins:
+#       proxy-rewrite:
+#         regex_uri: ['^/dokumentation/(.*)', '/$1']
+#         headers:
+#           set:
+#             X-Forwarded-Prefix: /dokumentation
+#     upstream:
+#       type: roundrobin
+#       nodes:
+#         "dokumentation:8080": 1
+#
+#   - id: bucket-root
+#     uri: /ch.so.daten
+#     plugins:
+#       cors:
+#         allow_origins: "*"
+#         allow_methods: "GET,HEAD,OPTIONS"
+#         allow_headers: "*"
+#         expose_headers: "ETag,Content-Length,Content-Type,Accept-Ranges,Content-Range"
+#       redirect:
+#         uri: /ch.so.daten/
+#         ret_code: 308
+#
+#   - id: bucket
+#     uri: /ch.so.daten/*
+#     plugins:
+#       cors:
+#         allow_origins: "*"
+#         allow_methods: "GET,HEAD,OPTIONS"
+#         allow_headers: "*"
+#         expose_headers: "ETag,Content-Length,Content-Type,Accept-Ranges,Content-Range"
+#       forward-auth:
+#         uri: http://garage:3903/check?domain=ch.so.daten
+#       response-rewrite:
+#         headers:
+#           set:
+#             Cache-Control: no-store
+#     upstream:
+#       type: roundrobin
+#       nodes:
+#         "s3-browser:8080": 1
+#
+  # Einziger Anwendungs-Upstream im AWS-Lesebetrieb.
   - id: portal
     uri: /*
     priority: -100

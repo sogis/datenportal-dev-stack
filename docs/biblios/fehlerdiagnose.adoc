@@ -2,6 +2,34 @@
 = Fehlerdiagnose und Datenhaltung
 :page-layout: docs
 
+[IMPORTANT]
+====
+Im Branch `s3-aws` läuft ausschliesslich das AWS-Portal mit Sodata und APISIX.
+Die nach dem Abschnitt «Historischer Garage-Gesamtstack» folgenden Anleitungen
+sind vorübergehend inaktiv und dürfen in diesem Branch nicht ausgeführt werden.
+Die aktuelle Übersicht steht im Repository-README.
+====
+
+== AWS-Portal prüfen (Branch s3-aws)
+
+[source,bash]
+----
+docker compose ps -a
+docker compose logs --tail=100 sodata downloads
+curl -fS http://localhost:8081/gateway-health
+curl -fS https://s3.eu-central-1.amazonaws.com/ch.so.daten-test/current.json
+./scripts/smoke-test.sh
+----
+
+Erwartet sind zwei gesunde Container. Sodata lädt direkt von AWS; Garage,
+Jenkins und ein lokaler Bucket sind nicht erforderlich. `/actuator` ist über
+APISIX absichtlich gesperrt; der Container-Healthcheck läuft intern.
+Bei abweichendem Publikationsstand Sodata neu starten. Für Erkunden muss die
+Downloadbasis als CSP-Origin erlaubt sein und AWS CORS/Range unterstützen.
+Alte Volumes bleiben erhalten; keine Neuinitialisierung oder Volume-Löschung.
+
+== Historischer Garage-Gesamtstack (inaktiv)
+
 == Zustände auseinanderhalten
 
 Ein gesundes Jenkins bestätigt noch keine erfolgreiche Lieferung. Ein

@@ -4,6 +4,23 @@
 :toclevels: 3
 :sectnums:
 
+[IMPORTANT]
+====
+Im Branch `s3-aws` läuft ausschliesslich das AWS-Portal mit Sodata und APISIX.
+Die nach dem Abschnitt «Historischer Garage-Gesamtstack» folgenden Anleitungen
+sind vorübergehend inaktiv und dürfen in diesem Branch nicht ausgeführt werden.
+Die aktuelle Übersicht steht im Repository-README.
+====
+
+== Aktueller Branch s3-aws
+
+Aktiv sind nur Sodata und APISIX. Das Portal liest aus dem AWS-Testbucket
+`ch.so.daten-test` in `eu-central-1`. Einstieg: `./scripts/up.sh`, Portal unter
+`http://localhost:8081/`, lesender Check mit `./scripts/smoke-test.sh`.
+Siehe xref:start.adoc[Start] und xref:konfiguration.adoc[Konfiguration].
+
+== Historischer Garage-Gesamtstack (inaktiv)
+
 Diese Anleitung beschreibt den implementierten lokalen Integrationsstand.
 Alle Shellbeispiele werden, sofern nicht anders angegeben, im Root von
 `datenportal-dev-stack` ausgeführt. Die Parameterreferenz erklärt Abweichungen

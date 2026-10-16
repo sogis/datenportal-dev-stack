@@ -2,6 +2,38 @@
 = Konfigurationsreferenz
 :page-layout: docs
 
+[IMPORTANT]
+====
+Im Branch `s3-aws` läuft ausschliesslich das AWS-Portal mit Sodata und APISIX.
+Die nach dem Abschnitt «Historischer Garage-Gesamtstack» folgenden Anleitungen
+sind vorübergehend inaktiv und dürfen in diesem Branch nicht ausgeführt werden.
+Die aktuelle Übersicht steht im Repository-README.
+====
+
+== Aktive AWS-Konfiguration (Branch s3-aws)
+
+Einstellungsort: optionale ignorierte `.env` oder exportierte Umgebung;
+Shellwerte haben Vorrang. Änderungen der ENV benötigen Container-Neuerstellung.
+
+[cols="2,4",options="header"]
+|===
+|Parameter |Default / Bedeutung
+|`DATENPORTAL_SODATA_IMAGE` |`sogis/datenportal-sodata:0.1.20`
+|`GARAGE_PUBLIC_PORT` |`8081`; historischer Name für APISIX-Hostport und Listener.
+|`DATENPORTAL_CATALOG_HTTP_URL` |`https://s3.eu-central-1.amazonaws.com/ch.so.daten-test/current.json`
+|`DATENPORTAL_CATALOG_DOWNLOAD_URL` |`https://s3.eu-central-1.amazonaws.com/ch.so.daten-test`; Downloadbasis und CSP-Origin.
+|`DATENPORTAL_PORTAL_RELOAD_TOKEN` |Optional; ohne Wert sind interner Reload/Status deaktiviert.
+|`SODATA_REPO_DIR` |`../datenportal-sodata`; nur für den expliziten lokalen Build.
+|===
+
+XTF und DuckDB verwenden fest `source-type=manifest` und denselben Release.
+Die öffentlichen AWS-Objekte werden ohne SDK oder AWS-/Garage-Schlüssel gelesen.
+Die übrigen Jenkins-/Garage-Parameter sind in diesem Branch inaktiv.
+`compose.registry.yaml`, Editor-, Jenkins- und Docs-Overrides sind auskommentiert;
+nur `compose.sodata-local.yaml` ergänzt einen lokalen Build.
+
+== Historischer Garage-Gesamtstack (inaktiv)
+
 == Einstellungsort, Priorität und Wirksamkeit
 
 Diese Referenz umfasst die öffentliche Schnittstelle von Compose und den

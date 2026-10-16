@@ -1,9 +1,12 @@
-services:
-  datenblatt-editor:
-    image: datenblatt-editor:local
-    build:
-      context: ../datenportal-datenblatt-editor
-      dockerfile: Dockerfile
-      args:
-        VITE_BASE_PATH: ./
-        VITE_METADATA_SOURCE_URL: /ch.so.daten/current.json
+# Im Branch s3-aws inaktiv; nur compose.sodata-local.yaml ist als Build-Override aktiv.
+services: {}
+
+# services:
+#   datenblatt-editor:
+#     image: datenblatt-editor:local
+#     build:
+#       context: ../datenportal-datenblatt-editor
+#       dockerfile: Dockerfile
+#       args:
+#         VITE_BASE_PATH: ./
+#         VITE_METADATA_SOURCE_URL: /ch.so.daten/current.json

@@ -2,6 +2,37 @@
 = Voraussetzungen und Start
 :page-layout: docs
 
+[IMPORTANT]
+====
+Im Branch `s3-aws` läuft ausschliesslich das AWS-Portal mit Sodata und APISIX.
+Die nach dem Abschnitt «Historischer Garage-Gesamtstack» folgenden Anleitungen
+sind vorübergehend inaktiv und dürfen in diesem Branch nicht ausgeführt werden.
+Die aktuelle Übersicht steht im Repository-README.
+====
+
+== AWS-Portal starten (Branch s3-aws)
+
+Benötigt: Docker mit Compose v2, Bash, Python 3 und Zugriff auf Registry/AWS.
+Keine `.env`, Zugangsdaten oder Schwester-Repositories nötig.
+
+[source,bash]
+----
+./scripts/up.sh
+# Alternativ gleicher Registry-Betrieb:
+./scripts/up.sh --registry-only
+docker compose ps
+./scripts/smoke-test.sh
+----
+
+Nur `sodata` und `downloads` (APISIX) laufen. Portal: `http://localhost:8081/`.
+Der Start entfernt alte Container desselben Compose-Projekts ohne Volume-Löschung.
+`./scripts/down.sh` stoppt den reduzierten Stack und erhält seine Datenvolumes.
+`./scripts/up.sh --local-sodata` baut explizit den Arbeitsstand aus
+`../datenportal-sodata` (oder `SODATA_REPO_DIR`); alle anderen lokalen
+Komponentenoptionen sowie `--infrastructure-only` sind deaktiviert.
+
+== Historischer Garage-Gesamtstack (inaktiv)
+
 == Registry-Variante ohne Schwester-Repositories
 
 `./scripts/up.sh --registry-only` verwendet `compose.yaml` zusammen mit

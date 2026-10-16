@@ -1,13 +1,16 @@
-# Betriebsvariante: nur Registry-Images, keine Schwester-Checkouts.
-# !override ersetzt die gesamte Mount-Liste (Docker Compose >= 2.24.4).
-services:
-  jenkins:
-    environment:
-      THEMEN_REPO_MODE: managed-git
-      THEMEN_REPO_URL: ${THEMEN_REPO_URL:-https://github.com/sogis/datenportal-themenrepo.git}
-      THEMEN_REPO_PATH: ""
-      THEMEN_REPO_WRITE_BACK_ENABLED: "false"
-      ORG_GRADLE_PROJECT_gitWriteBack: "false"
-    volumes: !override
-      - jenkins-home:/var/jenkins_home
-      - ./services/jenkins/jenkins-stack.yaml:/opt/datenportal/casc/jenkins-stack.yaml:ro
+# Im Branch s3-aws inaktiv; nur compose.sodata-local.yaml ist als Build-Override aktiv.
+services: {}
+
+# # Betriebsvariante: nur Registry-Images, keine Schwester-Checkouts.
+# # !override ersetzt die gesamte Mount-Liste (Docker Compose >= 2.24.4).
+# services:
+#   jenkins:
+#     environment:
+#       THEMEN_REPO_MODE: managed-git
+#       THEMEN_REPO_URL: ${THEMEN_REPO_URL:-https://github.com/sogis/datenportal-themenrepo.git}
+#       THEMEN_REPO_PATH: ""
+#       THEMEN_REPO_WRITE_BACK_ENABLED: "false"
+#       ORG_GRADLE_PROJECT_gitWriteBack: "false"
+#     volumes: !override
+#       - jenkins-home:/var/jenkins_home
+#       - ./services/jenkins/jenkins-stack.yaml:/opt/datenportal/casc/jenkins-stack.yaml:ro

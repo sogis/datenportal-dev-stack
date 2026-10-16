@@ -1,3 +1,6 @@
-services:
-  jenkins:
-    image: datenportal-jenkins:local
+# Im Branch s3-aws inaktiv; nur compose.sodata-local.yaml ist als Build-Override aktiv.
+services: {}
+
+# services:
+#   jenkins:
+#     image: datenportal-jenkins:local

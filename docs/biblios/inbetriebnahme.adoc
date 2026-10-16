@@ -2,6 +2,25 @@
 = Lokale Inbetriebnahme und Lieferablauf
 :page-layout: docs
 
+[IMPORTANT]
+====
+Im Branch `s3-aws` läuft ausschliesslich das AWS-Portal mit Sodata und APISIX.
+Die nach dem Abschnitt «Historischer Garage-Gesamtstack» folgenden Anleitungen
+sind vorübergehend inaktiv und dürfen in diesem Branch nicht ausgeführt werden.
+Die aktuelle Übersicht steht im Repository-README.
+====
+
+== AWS-Lesebetrieb (Branch s3-aws)
+
+Keine Initialisierung, Migration oder Lieferung ausführen. Der vorhandene
+AWS-Publikationsstand wird nur gelesen. `./scripts/up.sh` startet Sodata und
+APISIX direkt; `./scripts/smoke-test.sh` prüft die Übereinstimmung mit AWS.
+Bei neuer AWS-Veröffentlichung `docker compose restart sodata` ausführen.
+Ein expliziter interner Reload bleibt optional token-geschützt; öffentlich
+sperrt APISIX `/admin` und `/actuator`. Es gibt kein automatisches Polling.
+
+== Historischer Garage-Gesamtstack (inaktiv)
+
 == Dienste, Adressen und Seeder
 
 xref:start.adoc[Der lokale Start] führt den Seed-Job `gretl-datenportal-seed`

@@ -1,139 +1,133 @@
 name: datenportal-dev-stack
 
 services:
-  garage:
-    image: dxflrs/garage:v2.4.1
-    command: ["/garage", "server", "--single-node", "--default-bucket"]
-    restart: unless-stopped
-    environment:
-      GARAGE_DEFAULT_ACCESS_KEY: ${GARAGE_DEFAULT_ACCESS_KEY:?Run ./scripts/init.sh first}
-      GARAGE_DEFAULT_SECRET_KEY: ${GARAGE_DEFAULT_SECRET_KEY:?Run ./scripts/init.sh first}
-      GARAGE_DEFAULT_BUCKET: ch.so.daten
-      RUST_LOG: garage=info
-    ports:
-      - "${GARAGE_S3_PORT:-3900}:3900"
-    expose:
-      - "3901"
-      - "3902"
-      - "3903"
-    volumes:
-      - ./services/garage/garage.toml:/etc/garage.toml:ro
-      - garage-meta:/var/lib/garage/meta
-      - garage-data:/var/lib/garage/data
-    healthcheck:
-      test: ["CMD", "/garage", "status"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-
-  datenblatt-editor:
-    image: sogis/datenportal-datenblatt-editor:0.1.15
-    restart: unless-stopped
-    expose:
-      - "8080"
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 5s
-
-  dokumentation:
-    image: ${DATENPORTAL_DOCS_IMAGE:-sogis/datenportal-dokumentation:0.1.27}
-    restart: unless-stopped
-    expose:
-      - "8080"
-
-  s3-browser:
-    image: rclone/rclone:1.75.2
-    restart: unless-stopped
-    depends_on:
-      garage:
-        condition: service_healthy
-    environment:
-      RCLONE_CONFIG_GARAGE_TYPE: s3
-      RCLONE_CONFIG_GARAGE_PROVIDER: Other
-      RCLONE_CONFIG_GARAGE_ENV_AUTH: "false"
-      RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID: ${GARAGE_BROWSER_ACCESS_KEY:?Run ./scripts/init.sh first}
-      RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY: ${GARAGE_BROWSER_SECRET_KEY:?Run ./scripts/init.sh first}
-      RCLONE_CONFIG_GARAGE_REGION: garage
-      RCLONE_CONFIG_GARAGE_ENDPOINT: http://garage:3900
-      RCLONE_CONFIG_GARAGE_FORCE_PATH_STYLE: "true"
-    command:
-      - serve
-      - http
-      - garage:ch.so.daten
-      - --addr
-      - :8080
-      - --baseurl
-      - /ch.so.daten
-      - --read-only
-      - --dir-cache-time
-      - 0s
-    expose:
-      - "8080"
-    healthcheck:
-      test: ["CMD", "rclone", "lsd", "garage:ch.so.daten"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 5s
-
-  jenkins:
-    image: ${DATENPORTAL_JENKINS_IMAGE:-sogis/datenportal-jenkins:0.1.0-7}
-    restart: unless-stopped
-    depends_on:
-      garage:
-        condition: service_healthy
-    ports:
-      - "${GARAGE_PUBLIC_PORT:-8081}:${GARAGE_PUBLIC_PORT:-8081}"
-    environment:
-      JENKINS_RUNTIME_MODE: dev
-      CASC_JENKINS_CONFIG: /opt/datenportal/casc/jenkins-stack.yaml
-      JENKINS_URL: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/jenkins/
-      JENKINS_OPTS: --prefix=/jenkins
-      THEMEN_REPO_MODE: working-tree
-      THEMEN_REPO_URL: ""
-      THEMEN_REPO_PATH: /workspace/themenrepo
-      THEMEN_REPO_BRANCH: ${THEMEN_REPO_BRANCH:-main}
-      THEMEN_REPO_WRITE_BACK_ENABLED: "false"
-      ORG_GRADLE_PROJECT_gitWriteBack: "false"
-      ORG_GRADLE_PROJECT_s3Publish: ${DATENPORTAL_S3_PUBLISH:-true}
-      ORG_GRADLE_PROJECT_publicationManifestUrl: ${DATENPORTAL_PUBLICATION_MANIFEST_URL:-http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten/current.json}
-      ORG_GRADLE_PROJECT_catalogDownloadBase: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten
-      ORG_GRADLE_PROJECT_portalReloadUrl: ${DATENPORTAL_PORTAL_RELOAD_URL:-http://sodata:8080/admin/catalog/reload}
-      ORG_GRADLE_PROJECT_portalReloadToken: ${DATENPORTAL_PORTAL_RELOAD_TOKEN:-}
-      ORG_GRADLE_PROJECT_s3Endpoint: ${DATENPORTAL_S3_ENDPOINT:-http://garage:3900}
-      ORG_GRADLE_PROJECT_s3Region: ${DATENPORTAL_S3_REGION:-garage}
-      ORG_GRADLE_PROJECT_s3BucketName: ${DATENPORTAL_S3_BUCKET:-ch.so.daten}
-      ORG_GRADLE_PROJECT_s3AccessKey: ${GARAGE_DEFAULT_ACCESS_KEY:?Run ./scripts/init.sh first}
-      ORG_GRADLE_PROJECT_s3SecretKey: ${GARAGE_DEFAULT_SECRET_KEY:?Run ./scripts/init.sh first}
-      ORG_GRADLE_PROJECT_s3Acl: ${DATENPORTAL_S3_ACL:-private}
-    volumes:
-      - jenkins-home:/var/jenkins_home
-      - ./services/jenkins/jenkins-stack.yaml:/opt/datenportal/casc/jenkins-stack.yaml:ro
-      - ../datenportal-themenrepo:/workspace/themenrepo:ro
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/jenkins/login >/dev/null"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 30s
-
+  # Im Branch s3-aws vorübergehend inaktiv; Volumes bleiben erhalten.
+#   garage:
+#     image: dxflrs/garage:v2.4.1
+#     command: ["/garage", "server", "--single-node", "--default-bucket"]
+#     restart: unless-stopped
+#     environment:
+#       GARAGE_DEFAULT_ACCESS_KEY: ${GARAGE_DEFAULT_ACCESS_KEY:?Run ./scripts/init.sh first}
+#       GARAGE_DEFAULT_SECRET_KEY: ${GARAGE_DEFAULT_SECRET_KEY:?Run ./scripts/init.sh first}
+#       GARAGE_DEFAULT_BUCKET: ch.so.daten
+#       RUST_LOG: garage=info
+#     ports:
+#       - "${GARAGE_S3_PORT:-3900}:3900"
+#     expose:
+#       - "3901"
+#       - "3902"
+#       - "3903"
+#     volumes:
+#       - ./services/garage/garage.toml:/etc/garage.toml:ro
+#       - garage-meta:/var/lib/garage/meta
+#       - garage-data:/var/lib/garage/data
+#     healthcheck:
+#       test: ["CMD", "/garage", "status"]
+#       interval: 5s
+#       timeout: 5s
+#       retries: 30
+#
+#   datenblatt-editor:
+#     image: sogis/datenportal-datenblatt-editor:0.1.15
+#     restart: unless-stopped
+#     expose:
+#       - "8080"
+#     healthcheck:
+#       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+#       interval: 5s
+#       timeout: 5s
+#       retries: 30
+#       start_period: 5s
+#
+#   dokumentation:
+#     image: ${DATENPORTAL_DOCS_IMAGE:-sogis/datenportal-dokumentation:0.1.27}
+#     restart: unless-stopped
+#     expose:
+#       - "8080"
+#
+#   s3-browser:
+#     image: rclone/rclone:1.75.2
+#     restart: unless-stopped
+#     depends_on:
+#       garage:
+#         condition: service_healthy
+#     environment:
+#       RCLONE_CONFIG_GARAGE_TYPE: s3
+#       RCLONE_CONFIG_GARAGE_PROVIDER: Other
+#       RCLONE_CONFIG_GARAGE_ENV_AUTH: "false"
+#       RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID: ${GARAGE_BROWSER_ACCESS_KEY:?Run ./scripts/init.sh first}
+#       RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY: ${GARAGE_BROWSER_SECRET_KEY:?Run ./scripts/init.sh first}
+#       RCLONE_CONFIG_GARAGE_REGION: garage
+#       RCLONE_CONFIG_GARAGE_ENDPOINT: http://garage:3900
+#       RCLONE_CONFIG_GARAGE_FORCE_PATH_STYLE: "true"
+#     command:
+#       - serve
+#       - http
+#       - garage:ch.so.daten
+#       - --addr
+#       - :8080
+#       - --baseurl
+#       - /ch.so.daten
+#       - --read-only
+#       - --dir-cache-time
+#       - 0s
+#     expose:
+#       - "8080"
+#     healthcheck:
+#       test: ["CMD", "rclone", "lsd", "garage:ch.so.daten"]
+#       interval: 5s
+#       timeout: 5s
+#       retries: 30
+#       start_period: 5s
+#
+#   jenkins:
+#     image: ${DATENPORTAL_JENKINS_IMAGE:-sogis/datenportal-jenkins:0.1.0-7}
+#     restart: unless-stopped
+#     depends_on:
+#       garage:
+#         condition: service_healthy
+#     ports:
+#       - "${GARAGE_PUBLIC_PORT:-8081}:${GARAGE_PUBLIC_PORT:-8081}"
+#     environment:
+#       JENKINS_RUNTIME_MODE: dev
+#       CASC_JENKINS_CONFIG: /opt/datenportal/casc/jenkins-stack.yaml
+#       JENKINS_URL: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/jenkins/
+#       JENKINS_OPTS: --prefix=/jenkins
+#       THEMEN_REPO_MODE: working-tree
+#       THEMEN_REPO_URL: ""
+#       THEMEN_REPO_PATH: /workspace/themenrepo
+#       THEMEN_REPO_BRANCH: ${THEMEN_REPO_BRANCH:-main}
+#       THEMEN_REPO_WRITE_BACK_ENABLED: "false"
+#       ORG_GRADLE_PROJECT_gitWriteBack: "false"
+#       ORG_GRADLE_PROJECT_s3Publish: ${DATENPORTAL_S3_PUBLISH:-true}
+#       ORG_GRADLE_PROJECT_publicationManifestUrl: ${DATENPORTAL_PUBLICATION_MANIFEST_URL:-http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten/current.json}
+#       ORG_GRADLE_PROJECT_catalogDownloadBase: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten
+#       ORG_GRADLE_PROJECT_portalReloadUrl: ${DATENPORTAL_PORTAL_RELOAD_URL:-http://sodata:8080/admin/catalog/reload}
+#       ORG_GRADLE_PROJECT_portalReloadToken: ${DATENPORTAL_PORTAL_RELOAD_TOKEN:-}
+#       ORG_GRADLE_PROJECT_s3Endpoint: ${DATENPORTAL_S3_ENDPOINT:-http://garage:3900}
+#       ORG_GRADLE_PROJECT_s3Region: ${DATENPORTAL_S3_REGION:-garage}
+#       ORG_GRADLE_PROJECT_s3BucketName: ${DATENPORTAL_S3_BUCKET:-ch.so.daten}
+#       ORG_GRADLE_PROJECT_s3AccessKey: ${GARAGE_DEFAULT_ACCESS_KEY:?Run ./scripts/init.sh first}
+#       ORG_GRADLE_PROJECT_s3SecretKey: ${GARAGE_DEFAULT_SECRET_KEY:?Run ./scripts/init.sh first}
+#       ORG_GRADLE_PROJECT_s3Acl: ${DATENPORTAL_S3_ACL:-private}
+#     volumes:
+#       - jenkins-home:/var/jenkins_home
+#       - ./services/jenkins/jenkins-stack.yaml:/opt/datenportal/casc/jenkins-stack.yaml:ro
+#       - ../datenportal-themenrepo:/workspace/themenrepo:ro
+#     healthcheck:
+#       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/jenkins/login >/dev/null"]
+#       interval: 10s
+#       timeout: 5s
+#       retries: 30
+#       start_period: 30s
+#
   downloads:
     image: apache/apisix:3.19.0-debian
     restart: unless-stopped
-    network_mode: service:jenkins
+    ports:
+      - "${GARAGE_PUBLIC_PORT:-8081}:${GARAGE_PUBLIC_PORT:-8081}"
     depends_on:
-      jenkins:
-        condition: service_started
-      garage:
-        condition: service_healthy
-      dokumentation:
-        condition: service_healthy
-      datenblatt-editor:
-        condition: service_healthy
-      s3-browser:
+      sodata:
         condition: service_healthy
     environment:
       APISIX_STAND_ALONE: "true"
@@ -151,50 +145,47 @@ services:
   sodata:
     image: ${DATENPORTAL_SODATA_IMAGE:-sogis/datenportal-sodata:0.1.20}
     restart: on-failure:3
-    depends_on:
-      downloads:
-        condition: service_healthy
     expose:
       - "8080"
     environment:
       DATENPORTAL_ADMIN_RELOAD_TOKEN: ${DATENPORTAL_PORTAL_RELOAD_TOKEN:-}
       DATENPORTAL_CATALOG_SOURCE_TYPE: manifest
-      DATENPORTAL_CATALOG_HTTP_URL: http://jenkins:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten/current.json
-      DATENPORTAL_CATALOG_DOWNLOAD_URL: http://localhost:${GARAGE_PUBLIC_PORT:-8081}/ch.so.daten
+      DATENPORTAL_CATALOG_HTTP_URL: ${DATENPORTAL_CATALOG_HTTP_URL:-https://s3.eu-central-1.amazonaws.com/ch.so.daten-test/current.json}
+      DATENPORTAL_CATALOG_DOWNLOAD_URL: ${DATENPORTAL_CATALOG_DOWNLOAD_URL:-https://s3.eu-central-1.amazonaws.com/ch.so.daten-test}
       DATENPORTAL_CATALOG_DUCKDB_SOURCE_TYPE: manifest
 
-  garage-init:
-    image: amazon/aws-cli:2.38.1
-    restart: "no"
-    depends_on:
-      garage:
-        condition: service_healthy
-    environment:
-      AWS_ENDPOINT_URL: http://garage:3900
-      AWS_DEFAULT_REGION: garage
-      AWS_ACCESS_KEY_ID: ${GARAGE_DEFAULT_ACCESS_KEY:?Run ./scripts/init.sh first}
-      AWS_SECRET_ACCESS_KEY: ${GARAGE_DEFAULT_SECRET_KEY:?Run ./scripts/init.sh first}
-      AWS_EC2_METADATA_DISABLED: "true"
-      GARAGE_BUCKET: ch.so.daten
-      GARAGE_PUBLIC_PORT: ${GARAGE_PUBLIC_PORT:-8081}
-    volumes:
-      - ./services/garage/init:/init:ro
-    entrypoint: ["/bin/sh", "/init/initialize.sh"]
-
-  aws:
-    image: amazon/aws-cli:2.38.1
-    profiles: ["tools"]
-    depends_on:
-      garage:
-        condition: service_healthy
-    environment:
-      AWS_ENDPOINT_URL: http://garage:3900
-      AWS_DEFAULT_REGION: garage
-      AWS_ACCESS_KEY_ID: ${GARAGE_DEFAULT_ACCESS_KEY:?Run ./scripts/init.sh first}
-      AWS_SECRET_ACCESS_KEY: ${GARAGE_DEFAULT_SECRET_KEY:?Run ./scripts/init.sh first}
-      AWS_EC2_METADATA_DISABLED: "true"
-    entrypoint: ["aws", "--endpoint-url", "http://garage:3900", "--region", "garage"]
-
+#   garage-init:
+#     image: amazon/aws-cli:2.38.1
+#     restart: "no"
+#     depends_on:
+#       garage:
+#         condition: service_healthy
+#     environment:
+#       AWS_ENDPOINT_URL: http://garage:3900
+#       AWS_DEFAULT_REGION: garage
+#       AWS_ACCESS_KEY_ID: ${GARAGE_DEFAULT_ACCESS_KEY:?Run ./scripts/init.sh first}
+#       AWS_SECRET_ACCESS_KEY: ${GARAGE_DEFAULT_SECRET_KEY:?Run ./scripts/init.sh first}
+#       AWS_EC2_METADATA_DISABLED: "true"
+#       GARAGE_BUCKET: ch.so.daten
+#       GARAGE_PUBLIC_PORT: ${GARAGE_PUBLIC_PORT:-8081}
+#     volumes:
+#       - ./services/garage/init:/init:ro
+#     entrypoint: ["/bin/sh", "/init/initialize.sh"]
+#
+#   aws:
+#     image: amazon/aws-cli:2.38.1
+#     profiles: ["tools"]
+#     depends_on:
+#       garage:
+#         condition: service_healthy
+#     environment:
+#       AWS_ENDPOINT_URL: http://garage:3900
+#       AWS_DEFAULT_REGION: garage
+#       AWS_ACCESS_KEY_ID: ${GARAGE_DEFAULT_ACCESS_KEY:?Run ./scripts/init.sh first}
+#       AWS_SECRET_ACCESS_KEY: ${GARAGE_DEFAULT_SECRET_KEY:?Run ./scripts/init.sh first}
+#       AWS_EC2_METADATA_DISABLED: "true"
+#     entrypoint: ["aws", "--endpoint-url", "http://garage:3900", "--region", "garage"]
+#
 volumes:
   garage-meta:
   garage-data:
